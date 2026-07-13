@@ -1,0 +1,4 @@
+.env
+.env.*
+firebase-credentials.json
+*-firebase-adminsdk-*.json
