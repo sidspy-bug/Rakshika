@@ -147,7 +147,7 @@ Rakshika/
 ### 1. Clone & Configure
 
 ```bash
-git clone https://github.com/your-username/Rakshika.git
+git clone https://github.com/sidspy-bug/Rakshika.git
 cd Rakshika
 
 # Create your environment file
