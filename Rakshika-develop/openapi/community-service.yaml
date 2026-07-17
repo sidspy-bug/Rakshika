@@ -1,0 +1,39 @@
+openapi: 3.1.0
+info:
+  title: Rakshika Community Service API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /community/nearby:
+    get:
+      tags: [Community]
+      summary: Nearby responders
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Nearby responders }
+  /community/broadcast:
+    post:
+      tags: [Community]
+      summary: Broadcast emergency
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Broadcast queued }
+  /community/respond:
+    post:
+      tags: [Community]
+      summary: Responder action
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Response recorded }
+  /community/responders:
+    get:
+      tags: [Community]
+      summary: Emergency responders
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Responders }

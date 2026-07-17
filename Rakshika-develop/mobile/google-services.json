@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "337888226648",
+    "project_id": "rakshika-9fb2a",
+    "storage_bucket": "rakshika-9fb2a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:337888226648:android:255cae4f00f5aaa673892d",
+        "android_client_info": {
+          "package_name": "rakshika.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2VZwrVMW1CHgx2xQciXiAWJCyfhovyws"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,56 @@
+openapi: 3.1.0
+info:
+  title: Rakshika Common API Components
+  version: 1.0.0
+servers:
+  - url: /api/v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: Validation failed.
+    Unauthorized:
+      description: Authentication required or invalid token.
+    Forbidden:
+      description: Access denied.
+    NotFound:
+      description: Resource not found.
+    TooManyRequests:
+      description: Rate limit exceeded.
+    ServerError:
+      description: Internal server error.
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+    PaginationMeta:
+      type: object
+      required: [page, pageSize, total, hasNext]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        hasNext:
+          type: boolean
