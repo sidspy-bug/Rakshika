@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Rakshika",
+    "slug": "rakshika",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,26 +13,68 @@
           "isBackgroundEnabled": true
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ef4444",
+          "sounds": [],
+          "mode": "production"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Rakshika needs camera access to record silent video evidence during an SOS emergency.",
+          "microphonePermission": "Rakshika needs microphone access to record audio evidence during an SOS emergency.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Rakshika uses your location to share it with emergency contacts and responders during an SOS alert.",
+          "locationAlwaysPermission": "Allow Rakshika to access your location in the background so emergency alerts include your live GPS position.",
+          "locationWhenInUsePermission": "Rakshika uses your location to display safe routes and share your position during emergencies."
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.rakshika.app",
       "infoPlist": {
         "UIBackgroundModes": [
           "bluetooth-central",
-          "bluetooth-peripheral"
+          "bluetooth-peripheral",
+          "location",
+          "fetch"
         ],
-        "NSBluetoothAlwaysUsageDescription": "Rakshika uses Bluetooth to relay emergency signals when offline"
+        "NSBluetoothAlwaysUsageDescription": "Rakshika uses Bluetooth to relay emergency signals when offline.",
+        "NSCameraUsageDescription": "Rakshika records silent video evidence during SOS emergencies.",
+        "NSMicrophoneUsageDescription": "Rakshika records audio evidence during SOS emergencies.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Rakshika uses your location to share with emergency contacts.",
+        "NSLocationWhenInUseUsageDescription": "Rakshika uses your location to show safe routes."
       }
     },
     "android": {
-      "package": "rakshika.com",
+      "package": "com.rakshika.app",
       "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+        }
+      },
       "permissions": [
         "BLUETOOTH_SCAN",
         "BLUETOOTH_ADVERTISE",
         "BLUETOOTH_CONNECT",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -47,3 +89,4 @@
     }
   }
 }
+
