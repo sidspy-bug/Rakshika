@@ -60,7 +60,7 @@ export function RegisterScreen() {
           phone: formData.phone,
           password: formData.password,
         };
-        const response = await api.post("/auth/register", authPayload);
+        const response = await api.post("/auth/signup", authPayload);
         const { accessToken } = response.data.tokens;
         localStorage.setItem("access_token", accessToken);
         

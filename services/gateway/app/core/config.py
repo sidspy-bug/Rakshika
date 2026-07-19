@@ -76,7 +76,7 @@ class GatewaySettings(AppSettings):
         default_factory=lambda: [
             "/api/v1/health",
             "/api/v1/auth/login",
-            "/api/v1/auth/register",
+            "/api/v1/auth/signup",
             "/api/v1/auth/refresh",
             "/api/v1/openapi-sources",
             "/api/v1/ai/chat",

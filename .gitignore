@@ -2,3 +2,12 @@
 .env.*
 firebase-credentials.json
 *-firebase-adminsdk-*.json
+venv/
+__pycache__/
+*.pyc
+node_modules/
+.expo/
+dist/
+.idea/
+.vscode/
+.DS_Store
