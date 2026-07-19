@@ -54,7 +54,7 @@ class SecuritySettings(BaseModel):
     """Security headers, CORS, and cookie settings."""
 
     cors_allowed_origins: list[str] = Field(default_factory=list)
-    trusted_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
+    trusted_hosts: list[str] = Field(default_factory=lambda: ["*"])
     access_token_cookie_name: str = Field(default="rakshika_access_token")
     refresh_token_cookie_name: str = Field(default="rakshika_refresh_token")
     secure_cookies: bool = False

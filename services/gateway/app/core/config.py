@@ -72,6 +72,7 @@ class GatewaySettings(AppSettings):
     )
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
     request_timeout_seconds: int = Field(default=30, ge=1)
+    firebase_project_id: str | None = Field(default="rakshika-safety", alias="firebaseProjectId")
     public_paths: list[str] = Field(
         default_factory=lambda: [
             "/api/v1/health",

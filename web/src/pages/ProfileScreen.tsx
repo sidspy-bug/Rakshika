@@ -1,9 +1,14 @@
 import { User, ShieldCheck, HeartPulse, History, Settings2, LogOut, ChevronRight, Bell, Smartphone } from "lucide-react";
 import { GlassCard } from "../components/ui/GlassCard";
 import { useNavigate } from "react-router-dom";
+import { firebaseAuthService } from "../services/firebaseAuth";
 
 export function ProfileScreen() {
   const navigate = useNavigate();
+
+  const profileRaw = localStorage.getItem("user_profile");
+  const user = profileRaw ? JSON.parse(profileRaw) : null;
+  const fullName = user?.fullName || "Jane Doe";
 
   const menuItems = [
     { icon: ShieldCheck, title: "Emergency Contacts", subtitle: "Manage primary and secondary contacts" },
@@ -21,7 +26,7 @@ export function ProfileScreen() {
           <User className="w-8 h-8 text-[#D32F2F]" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Jane Doe</h1>
+          <h1 className="text-xl font-bold text-gray-900">{fullName}</h1>
           <p className="text-sm text-green-600 font-semibold flex items-center gap-1 mt-0.5">
             <ShieldCheck className="w-4 h-4" /> Identity Verified
           </p>
@@ -63,8 +68,8 @@ export function ProfileScreen() {
       </div>
 
       <button 
-        onClick={() => {
-          localStorage.removeItem("access_token");
+        onClick={async () => {
+          await firebaseAuthService.logout();
           navigate("/login");
         }}
         className="w-full p-4 flex items-center justify-center gap-2 text-[#D32F2F] font-bold bg-red-50 hover:bg-red-100 rounded-2xl transition-colors"

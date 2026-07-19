@@ -3,7 +3,7 @@ import { Shield, Mail, Lock, ArrowRight } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { api } from "../services/api";
+import { firebaseAuthService } from "../services/firebaseAuth";
 
 export function LoginScreen() {
   const navigate = useNavigate();
@@ -18,13 +18,11 @@ export function LoginScreen() {
     setErrorMsg("");
     
     try {
-      const response = await api.post("/auth/login", { email, password });
-      const { accessToken } = response.data.tokens;
-      localStorage.setItem("access_token", accessToken);
+      await firebaseAuthService.login(email, password);
       navigate("/");
     } catch (err: any) {
       console.error("Login Error:", err);
-      setErrorMsg(err.response?.data?.message || "Failed to sign in. Please check your credentials.");
+      setErrorMsg(err.message || "Failed to sign in. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }

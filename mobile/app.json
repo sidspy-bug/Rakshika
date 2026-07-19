@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Rakshika",
+    "slug": "rakshika",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111112"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Rakshika requires location permissions to track your GPS coordinates during active SOS emergencies and show nearby safety centers on the map.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Rakshika requires location permissions to track your GPS coordinates in the background during active emergencies to notify your guardians.",
+        "NSLocationAlwaysUsageDescription": "Rakshika requires location permissions to track your GPS coordinates in the background during active emergencies."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#111112"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysPermission": "Allow Rakshika to access your location always in the background during active emergencies."
+        }
+      ]
+    ]
+  }
+}

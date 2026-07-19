@@ -118,7 +118,7 @@ class GatewayService:
 
     @staticmethod
     def _build_upstream_url(base_url: str, path: str) -> str:
-        """Combine the downstream base URL and request path."""
+        """Combine the downstream base URL and request path including api prefix."""
 
         clean_path = path.lstrip("/")
-        return f"{base_url.rstrip('/')}/{clean_path}"
+        return f"{base_url.rstrip('/')}/api/v1/{clean_path}"

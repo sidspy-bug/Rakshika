@@ -3,7 +3,7 @@ import { Shield, User, Mail, Phone, Lock, HeartPulse, Activity, Users, ArrowRigh
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { api } from "../services/api";
+import { firebaseAuthService } from "../services/firebaseAuth";
 
 export function RegisterScreen() {
   const navigate = useNavigate();
@@ -53,23 +53,20 @@ export function RegisterScreen() {
       setIsLoading(true);
       setErrorMsg("");
       try {
-        // Step 1: Register User
-        const authPayload = {
-          fullName: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password,
-        };
-        const response = await api.post("/auth/signup", authPayload);
-        const { accessToken } = response.data.tokens;
-        localStorage.setItem("access_token", accessToken);
+        // Step 1: Register User via Firebase
+        await firebaseAuthService.register(
+          formData.email,
+          formData.password,
+          formData.fullName,
+          formData.phone
+        );
         
         // Step 2: (TODO) Save medical profile and contacts to user-service
         
         navigate("/");
       } catch (err: any) {
         console.error("Registration Error:", err);
-        setErrorMsg(err.response?.data?.message || "Failed to register. Please check your details.");
+        setErrorMsg(err.message || "Failed to register. Please check your details.");
       } finally {
         setIsLoading(false);
       }

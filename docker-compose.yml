@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # ── INFRASTRUCTURE ───────────────────────────────────────────────────────
   postgres:
-    image: postgres:15-alpine
+    image: postgis/postgis:15-3.3-alpine
     container_name: rakshika-postgres
     environment:
       POSTGRES_USER: user
