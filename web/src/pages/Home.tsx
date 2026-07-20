@@ -78,12 +78,47 @@ export function Home() {
         mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
       }
       setIsRecording(false);
-      showToastMessage("Recording saved securely.");
+      showToastMessage("Saving recording...");
     } else {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         const recorder = new MediaRecorder(stream);
         mediaRecorderRef.current = recorder;
+        
+        const chunks: BlobPart[] = [];
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+        
+        recorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: "video/webm" });
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const fileName = `Manual_Record_${timestamp}.webm`;
+          
+          try {
+            const { Filesystem, Directory } = await import("@capacitor/filesystem");
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              try {
+                const base64Data = (reader.result as string).split(",")[1];
+                await Filesystem.writeFile({
+                  path: `Rakshika/${fileName}`,
+                  data: base64Data,
+                  directory: Directory.Documents,
+                  recursive: true,
+                });
+                alert(`Manual recording saved to Documents/Rakshika/${fileName}`);
+              } catch (innerErr) {
+                console.error("Failed to write manual recording:", innerErr);
+                alert("Failed to save manual recording.");
+              }
+            };
+            reader.readAsDataURL(blob);
+          } catch (fsErr) {
+            console.error("Could not setup file reader for manual recording:", fsErr);
+          }
+        };
+
         recorder.start();
         setIsRecording(true);
         showToastMessage("Recording started...");

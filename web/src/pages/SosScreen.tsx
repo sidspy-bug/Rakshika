@@ -148,6 +148,7 @@ export function SosScreen() {
         let cloudDownloadUrl = "";
 
         // 1. Upload to Firebase Storage
+        /*
         try {
           const user = auth.currentUser;
           const userId = user ? user.uid : "anonymous";
@@ -160,8 +161,10 @@ export function SosScreen() {
         } catch (uploadErr) {
           console.error("Cloud evidence upload failed:", uploadErr);
         }
+        */
 
         // 2. Save Location History to Firestore
+        /*
         try {
           const user = auth.currentUser;
           const userId = user ? user.uid : "anonymous";
@@ -180,6 +183,7 @@ export function SosScreen() {
         } catch (dbErr) {
           console.error("Failed to save SOS record to Firestore:", dbErr);
         }
+        */
         
         // 3. Save to phone's local storage as backup
         try {
@@ -188,20 +192,26 @@ export function SosScreen() {
           // Convert blob to base64
           const reader = new FileReader();
           reader.onloadend = async () => {
-            const base64Data = (reader.result as string).split(",")[1];
-            
-            await Filesystem.writeFile({
-              path: `Rakshika/${fileName}`,
-              data: base64Data,
-              directory: Directory.Documents,
-              recursive: true,
-            });
-            
-            console.log(`Evidence saved to Documents/Rakshika/${fileName}`);
+            try {
+              const base64Data = (reader.result as string).split(",")[1];
+              
+              await Filesystem.writeFile({
+                path: `Rakshika/${fileName}`,
+                data: base64Data,
+                directory: Directory.Documents,
+                recursive: true,
+              });
+              
+              console.log(`Evidence saved to Documents/Rakshika/${fileName}`);
+              alert(`Video saved locally as ${fileName} in Documents/Rakshika`);
+            } catch (innerErr) {
+              console.error("Failed to write file inside onloadend:", innerErr);
+              alert("Failed to save video to local storage.");
+            }
           };
           reader.readAsDataURL(blob);
         } catch (fsErr) {
-          console.warn("Could not save evidence to local storage:", fsErr);
+          console.error("Could not setup file reader for local storage:", fsErr);
         }
         
         stream.getTracks().forEach(track => track.stop());
