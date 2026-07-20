@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, deleteUser } from "firebase/auth";
+import { doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { api } from "./api";
 
 const IS_MOCK = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === "mock-api-key-replace-me";
@@ -96,6 +96,41 @@ export const firebaseAuthService = {
     if (!IS_MOCK) {
       await signOut(auth);
     }
+  },
+
+  /**
+   * Deletes the user account permanently
+   */
+  async deleteAccount(): Promise<void> {
+    if (IS_MOCK) {
+      const usersRaw = localStorage.getItem("rakshika-mock-users");
+      const users = usersRaw ? JSON.parse(usersRaw) : {};
+      const profileRaw = localStorage.getItem("user_profile");
+      if (profileRaw) {
+        const email = JSON.parse(profileRaw).email;
+        delete users[email.toLowerCase()];
+        localStorage.setItem("rakshika-mock-users", JSON.stringify(users));
+      }
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user_profile");
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (user) {
+      // 1. Delete user document from Firestore
+      try {
+        await deleteDoc(doc(db, "users", user.uid));
+      } catch (e) {
+        console.warn("Could not delete user document:", e);
+      }
+      // 2. Delete the user from Auth
+      await deleteUser(user);
+    }
+    
+    // 3. Clear local storage
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user_profile");
   }
 };
 export default firebaseAuthService;

@@ -7,8 +7,8 @@ const OSRM_BASE_URL = "https://router.project-osrm.org/route/v1/foot"; // Using 
 // Nominatim Geocoding API
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org";
 
-// Overpass API Interpreter URL
-const OVERPASS_BASE_URL = "https://overpass-api.de/api/interpreter";
+// Overpass API Interpreter URL (Using lenient server to avoid 429 rate limit)
+const OVERPASS_BASE_URL = "https://lz4.overpass-api.de/api/interpreter";
 
 // Set proper headers to comply with OSM Nominatim usage policy
 const headers = {

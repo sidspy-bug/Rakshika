@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Rakshika</string>
+    <string name="title_activity_main">Rakshika</string>
+    <string name="package_name">com.rakshika.safety</string>
+    <string name="custom_url_scheme">com.rakshika.safety</string>
+</resources>

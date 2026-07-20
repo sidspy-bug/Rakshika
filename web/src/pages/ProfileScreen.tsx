@@ -152,6 +152,23 @@ export function ProfileScreen() {
       >
         <LogOut className="w-4 h-4" /> Sign Out
       </button>
+
+      <button 
+        onClick={async () => {
+          if (window.confirm("Are you sure you want to permanently delete your account? This action cannot be undone and will delete all your emergency data.")) {
+            try {
+              await firebaseAuthService.deleteAccount();
+              navigate("/login");
+            } catch (err) {
+              alert("Failed to delete account. You may need to sign in again to perform this action.");
+              console.error(err);
+            }
+          }
+        }}
+        className="w-full mt-4 p-4 flex items-center justify-center gap-2 text-white font-bold bg-red-600 hover:bg-red-700 rounded-2xl transition-colors shadow-lg"
+      >
+        <LogOut className="w-4 h-4" /> Delete Account
+      </button>
     </div>
   );
 }

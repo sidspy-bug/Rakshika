@@ -3,6 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ShieldAlert, X, Phone, MapPin, Video, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
+import { registerPlugin } from "@capacitor/core";
+import { storage, db, auth } from "../services/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, addDoc } from "firebase/firestore";
+
+const SmsPlugin = registerPlugin<any>("SmsPlugin");
 
 function Toast({ message }: { message: string }) {
   return (
@@ -27,6 +33,8 @@ export function SosScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const smsSentRef = useRef<boolean>(false);
+  const locationHistoryRef = useRef<{lat: number; lng: number; timestamp: string}[]>([]);
 
   // Press and hold logic
   useEffect(() => {
@@ -64,10 +72,57 @@ export function SosScreen() {
     setShowToast(true);
     setTimeout(() => setShowToast(false), 4000);
 
-    // 1. Start Live Tracking
+    // 1. Start Live Tracking & Send SMS
+    smsSentRef.current = false;
+    
     if (navigator.geolocation) {
       watchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => console.log("SOS Tracking: ", pos.coords.latitude, pos.coords.longitude),
+        async (pos) => {
+          console.log("SOS Tracking: ", pos.coords.latitude, pos.coords.longitude);
+          
+          locationHistoryRef.current.push({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (!smsSentRef.current) {
+            smsSentRef.current = true;
+            try {
+              const locationUrl = `https://www.google.com/maps/search/?api=1&query=${pos.coords.latitude},${pos.coords.longitude}`;
+              const message = `EMERGENCY SOS! I need help immediately. My live location: ${locationUrl}`;
+              // Send SMS to registered emergency contacts
+              const profileRaw = localStorage.getItem("user_profile");
+              if (profileRaw) {
+                try {
+                  const user = JSON.parse(profileRaw);
+                  let smsSent = false;
+                  
+                  if (user.primaryContactPhone) {
+                    await SmsPlugin.sendSms({ phone: user.primaryContactPhone, message });
+                    console.log(`Emergency SMS sent to primary contact: ${user.primaryContactPhone}`);
+                    smsSent = true;
+                  }
+                  if (user.secondaryContactPhone) {
+                    await SmsPlugin.sendSms({ phone: user.secondaryContactPhone, message });
+                    console.log(`Emergency SMS sent to secondary contact: ${user.secondaryContactPhone}`);
+                    smsSent = true;
+                  }
+                  
+                  if (!smsSent) {
+                    console.warn("No emergency contacts found in user profile.");
+                  }
+                } catch (e) {
+                  console.error("Error parsing user profile for SMS", e);
+                }
+              } else {
+                console.warn("No user profile found, cannot send SMS to emergency contacts.");
+              }
+            } catch (err) {
+              console.error("Failed to send emergency SMS:", err);
+            }
+          }
+        },
         (err) => console.warn(err),
         { enableHighAccuracy: true }
       );
@@ -84,11 +139,72 @@ export function SosScreen() {
         if (e.data.size > 0) chunks.push(e.data);
       };
       
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const blob = new Blob(chunks, { type: "video/webm" });
         console.log("Evidence collected: ", blob.size, "bytes");
-        // Simulated upload to Firebase Storage
-        // stream.getTracks().forEach(track => track.stop());
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const fileName = `SOS_Evidence_${timestamp}.webm`;
+        
+        let cloudDownloadUrl = "";
+
+        // 1. Upload to Firebase Storage
+        try {
+          const user = auth.currentUser;
+          const userId = user ? user.uid : "anonymous";
+          const evidenceRef = storageRef(storage, `sos_evidence/${userId}/${fileName}`);
+          
+          console.log("Uploading evidence to Firebase Storage...");
+          const snapshot = await uploadBytes(evidenceRef, blob);
+          cloudDownloadUrl = await getDownloadURL(snapshot.ref);
+          console.log("Evidence uploaded to Cloud:", cloudDownloadUrl);
+        } catch (uploadErr) {
+          console.error("Cloud evidence upload failed:", uploadErr);
+        }
+
+        // 2. Save Location History to Firestore
+        try {
+          const user = auth.currentUser;
+          const userId = user ? user.uid : "anonymous";
+          const profileRaw = localStorage.getItem("user_profile");
+          const profile = profileRaw ? JSON.parse(profileRaw) : {};
+
+          await addDoc(collection(db, "sos_records"), {
+            userId,
+            userEmail: profile.email || "unknown",
+            userPhone: profile.phone || "unknown",
+            timestamp: new Date().toISOString(),
+            evidenceUrl: cloudDownloadUrl,
+            locationHistory: locationHistoryRef.current
+          });
+          console.log("SOS Incident saved to Firestore successfully.");
+        } catch (dbErr) {
+          console.error("Failed to save SOS record to Firestore:", dbErr);
+        }
+        
+        // 3. Save to phone's local storage as backup
+        try {
+          const { Filesystem, Directory } = await import("@capacitor/filesystem");
+          
+          // Convert blob to base64
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const base64Data = (reader.result as string).split(",")[1];
+            
+            await Filesystem.writeFile({
+              path: `Rakshika/${fileName}`,
+              data: base64Data,
+              directory: Directory.Documents,
+              recursive: true,
+            });
+            
+            console.log(`Evidence saved to Documents/Rakshika/${fileName}`);
+          };
+          reader.readAsDataURL(blob);
+        } catch (fsErr) {
+          console.warn("Could not save evidence to local storage:", fsErr);
+        }
+        
+        stream.getTracks().forEach(track => track.stop());
       };
       
       mediaRecorder.start();
@@ -260,6 +376,15 @@ export function SosScreen() {
                 </div>
 
                 <p className="mt-8 text-sm text-white/50 text-center">Do not close this app.<br/>Authorities are tracking your location.</p>
+
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="w-full max-w-xs text-red-600 font-bold mt-6"
+                  onClick={cancelSos}
+                >
+                  <X className="w-5 h-5 mr-2" /> Stop SOS
+                </Button>
               </div>
             )}
           </motion.div>
