@@ -91,32 +91,51 @@ export function SosScreen() {
             try {
               const locationUrl = `https://www.google.com/maps/search/?api=1&query=${pos.coords.latitude},${pos.coords.longitude}`;
               const message = `EMERGENCY SOS! I need help immediately. My live location: ${locationUrl}`;
-              // Send SMS to registered emergency contacts
-              const profileRaw = localStorage.getItem("user_profile");
-              if (profileRaw) {
+
+              // Collect all emergency contact phone numbers
+              const phoneNumbers: string[] = [];
+
+              // 1. Read from the new Emergency Contacts module cache
+              try {
+                const contactsRaw = localStorage.getItem("rakshika-emergency-contacts");
+                if (contactsRaw) {
+                  const contacts = JSON.parse(contactsRaw);
+                  if (Array.isArray(contacts)) {
+                    contacts.forEach((c: { phone?: string }) => {
+                      if (c.phone) phoneNumbers.push(c.phone);
+                    });
+                  }
+                }
+              } catch (e) {
+                console.warn("Failed to read emergency contacts cache:", e);
+              }
+
+              // 2. Fallback: read legacy profile contacts for backward compatibility
+              if (phoneNumbers.length === 0) {
                 try {
-                  const user = JSON.parse(profileRaw);
-                  let smsSent = false;
-                  
-                  if (user.primaryContactPhone) {
-                    await SmsPlugin.sendSms({ phone: user.primaryContactPhone, message });
-                    console.log(`Emergency SMS sent to primary contact: ${user.primaryContactPhone}`);
-                    smsSent = true;
-                  }
-                  if (user.secondaryContactPhone) {
-                    await SmsPlugin.sendSms({ phone: user.secondaryContactPhone, message });
-                    console.log(`Emergency SMS sent to secondary contact: ${user.secondaryContactPhone}`);
-                    smsSent = true;
-                  }
-                  
-                  if (!smsSent) {
-                    console.warn("No emergency contacts found in user profile.");
+                  const profileRaw = localStorage.getItem("user_profile");
+                  if (profileRaw) {
+                    const user = JSON.parse(profileRaw);
+                    if (user.primaryContactPhone) phoneNumbers.push(user.primaryContactPhone);
+                    if (user.secondaryContactPhone) phoneNumbers.push(user.secondaryContactPhone);
                   }
                 } catch (e) {
-                  console.error("Error parsing user profile for SMS", e);
+                  console.error("Error reading legacy profile contacts:", e);
+                }
+              }
+
+              // 3. Send SMS to all collected emergency contacts
+              if (phoneNumbers.length > 0) {
+                for (const phone of phoneNumbers) {
+                  try {
+                    await SmsPlugin.sendSms({ phone, message });
+                    console.log(`Emergency SMS sent to: ${phone}`);
+                  } catch (smsErr) {
+                    console.error(`Failed to send SMS to ${phone}:`, smsErr);
+                  }
                 }
               } else {
-                console.warn("No user profile found, cannot send SMS to emergency contacts.");
+                console.warn("No emergency contacts found. Cannot send SOS SMS.");
               }
             } catch (err) {
               console.error("Failed to send emergency SMS:", err);
@@ -148,7 +167,6 @@ export function SosScreen() {
         let cloudDownloadUrl = "";
 
         // 1. Upload to Firebase Storage
-        /*
         try {
           const user = auth.currentUser;
           const userId = user ? user.uid : "anonymous";
@@ -161,10 +179,8 @@ export function SosScreen() {
         } catch (uploadErr) {
           console.error("Cloud evidence upload failed:", uploadErr);
         }
-        */
 
         // 2. Save Location History to Firestore
-        /*
         try {
           const user = auth.currentUser;
           const userId = user ? user.uid : "anonymous";
@@ -183,7 +199,6 @@ export function SosScreen() {
         } catch (dbErr) {
           console.error("Failed to save SOS record to Firestore:", dbErr);
         }
-        */
         
         // 3. Save to phone's local storage as backup
         try {
@@ -192,26 +207,20 @@ export function SosScreen() {
           // Convert blob to base64
           const reader = new FileReader();
           reader.onloadend = async () => {
-            try {
-              const base64Data = (reader.result as string).split(",")[1];
-              
-              await Filesystem.writeFile({
-                path: `Rakshika/${fileName}`,
-                data: base64Data,
-                directory: Directory.Documents,
-                recursive: true,
-              });
-              
-              console.log(`Evidence saved to Documents/Rakshika/${fileName}`);
-              alert(`Video saved locally as ${fileName} in Documents/Rakshika`);
-            } catch (innerErr) {
-              console.error("Failed to write file inside onloadend:", innerErr);
-              alert("Failed to save video to local storage.");
-            }
+            const base64Data = (reader.result as string).split(",")[1];
+            
+            await Filesystem.writeFile({
+              path: `Rakshika/${fileName}`,
+              data: base64Data,
+              directory: Directory.Documents,
+              recursive: true,
+            });
+            
+            console.log(`Evidence saved to Documents/Rakshika/${fileName}`);
           };
           reader.readAsDataURL(blob);
         } catch (fsErr) {
-          console.error("Could not setup file reader for local storage:", fsErr);
+          console.warn("Could not save evidence to local storage:", fsErr);
         }
         
         stream.getTracks().forEach(track => track.stop());

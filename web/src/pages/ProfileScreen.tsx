@@ -1,51 +1,85 @@
+/**
+ * ProfileScreen
+ *
+ * User profile page with safety score, emergency contacts management,
+ * settings menu, and account actions (logout, delete).
+ *
+ * The Emergency Contacts section uses the dedicated EmergencyContactsSection
+ * component which replaces the old inline primary/secondary contact form.
+ */
+
 import { useState } from "react";
-import { User, ShieldCheck, HeartPulse, History, Settings2, LogOut, ChevronRight, Bell, Smartphone } from "lucide-react";
+import {
+  User,
+  ShieldCheck,
+  HeartPulse,
+  History,
+  Settings2,
+  LogOut,
+  ChevronRight,
+  Bell,
+  Smartphone,
+} from "lucide-react";
 import { GlassCard } from "../components/ui/GlassCard";
 import { useNavigate } from "react-router-dom";
 import { firebaseAuthService } from "../services/firebaseAuth";
-import { Input } from "../components/ui/Input";
-import { Button } from "../components/ui/Button";
+import { EmergencyContactsSection } from "../components/emergency/EmergencyContactsSection";
+import { PermissionsSection } from "../components/settings/PermissionsSection";
 
 export function ProfileScreen() {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState(() => {
+  const [user] = useState(() => {
     const profileRaw = localStorage.getItem("user_profile");
     return profileRaw ? JSON.parse(profileRaw) : null;
   });
-  
-  const [showContacts, setShowContacts] = useState(false);
-  const [contactsForm, setContactsForm] = useState({
-    primaryContactName: user?.primaryContactName || "",
-    primaryContactPhone: user?.primaryContactPhone || "",
-    secondaryContactName: user?.secondaryContactName || "",
-    secondaryContactPhone: user?.secondaryContactPhone || "",
-  });
-  const [isSaving, setIsSaving] = useState(false);
+
+  // Track which expandable section is open (null = none)
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const fullName = user?.fullName || "Jane Doe";
 
-  const handleSaveContacts = () => {
-    setIsSaving(true);
-    const updatedUser = { ...user, ...contactsForm };
-    localStorage.setItem("user_profile", JSON.stringify(updatedUser));
-    setUser(updatedUser);
-    
-    // If we wanted to save to Firebase, we would do it here using setDoc
-    
-    setTimeout(() => {
-      setIsSaving(false);
-      setShowContacts(false);
-    }, 500);
+  const toggleSection = (title: string) => {
+    setExpandedSection((prev) => (prev === title ? null : title));
   };
 
   const menuItems = [
-    { icon: ShieldCheck, title: "Emergency Contacts", subtitle: "Manage primary and secondary contacts" },
-    { icon: HeartPulse, title: "Medical Profile", subtitle: "Blood group, conditions, allergies" },
-    { icon: History, title: "Emergency History", subtitle: "View past SOS logs and incident reports" },
-    { icon: Smartphone, title: "Trusted Devices", subtitle: "Manage active sessions and wearables" },
-    { icon: Bell, title: "Notification Preferences", subtitle: "Alerts, broadcasts, and sounds" },
-    { icon: Settings2, title: "Permissions", subtitle: "Location, microphone, and camera access" },
+    {
+      icon: ShieldCheck,
+      title: "Emergency Contacts",
+      subtitle: "Add up to 5 trusted contacts for SOS alerts",
+      expandable: true,
+    },
+    {
+      icon: HeartPulse,
+      title: "Medical Profile",
+      subtitle: "Blood group, conditions, allergies",
+      expandable: false,
+    },
+    {
+      icon: History,
+      title: "Emergency History",
+      subtitle: "View past SOS logs and incident reports",
+      expandable: false,
+    },
+    {
+      icon: Smartphone,
+      title: "Trusted Devices",
+      subtitle: "Manage active sessions and wearables",
+      expandable: false,
+    },
+    {
+      icon: Bell,
+      title: "Notification Preferences",
+      subtitle: "Alerts, broadcasts, and sounds",
+      expandable: false,
+    },
+    {
+      icon: Settings2,
+      title: "Permissions",
+      subtitle: "Location, microphone, and camera access",
+      expandable: true,
+    },
   ];
 
   return (
@@ -73,7 +107,9 @@ export function ProfileScreen() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-white/80 font-medium">Profile completeness</p>
+            <p className="text-xs text-white/80 font-medium">
+              Profile completeness
+            </p>
             <div className="w-24 h-2 bg-white/20 rounded-full mt-2 overflow-hidden">
               <div className="w-[94%] h-full bg-green-400 rounded-full"></div>
             </div>
@@ -81,14 +117,15 @@ export function ProfileScreen() {
         </div>
       </GlassCard>
 
+      {/* Settings Menu */}
       <div className="space-y-3">
         {menuItems.map((item, idx) => (
           <div key={idx} className="flex flex-col">
-            <div 
+            <div
               className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
               onClick={() => {
-                if (item.title === "Emergency Contacts") {
-                  setShowContacts(!showContacts);
+                if (item.expandable) {
+                  toggleSection(item.title);
                 }
               }}
             >
@@ -96,54 +133,41 @@ export function ProfileScreen() {
                 <item.icon className="w-5 h-5 text-gray-600" />
               </div>
               <div className="flex-1">
-                <h4 className="font-bold text-sm text-gray-900">{item.title}</h4>
-                <p className="text-xs text-gray-500 mt-0.5">{item.subtitle}</p>
+                <h4 className="font-bold text-sm text-gray-900">
+                  {item.title}
+                </h4>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {item.subtitle}
+                </p>
               </div>
-              <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${showContacts && item.title === "Emergency Contacts" ? "rotate-90" : ""}`} />
+              <ChevronRight
+                className={`w-4 h-4 text-gray-400 transition-transform ${
+                  expandedSection === item.title ? "rotate-90" : ""
+                }`}
+              />
             </div>
-            
-            {item.title === "Emergency Contacts" && showContacts && (
-              <div className="mt-2 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm space-y-4 animate-in slide-in-from-top-2">
-                <div className="space-y-3">
-                  <h5 className="text-sm font-bold text-gray-700">Primary Contact</h5>
-                  <Input 
-                    type="text" 
-                    placeholder="Name" 
-                    value={contactsForm.primaryContactName}
-                    onChange={(e) => setContactsForm({...contactsForm, primaryContactName: e.target.value})}
-                  />
-                  <Input 
-                    type="tel" 
-                    placeholder="Phone" 
-                    value={contactsForm.primaryContactPhone}
-                    onChange={(e) => setContactsForm({...contactsForm, primaryContactPhone: e.target.value})}
-                  />
+
+            {/* Emergency Contacts Expandable Section */}
+            {item.title === "Emergency Contacts" &&
+              expandedSection === "Emergency Contacts" && (
+                <div className="mt-2 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <EmergencyContactsSection />
                 </div>
-                <div className="space-y-3 pt-2">
-                  <h5 className="text-sm font-bold text-gray-700">Secondary Contact</h5>
-                  <Input 
-                    type="text" 
-                    placeholder="Name" 
-                    value={contactsForm.secondaryContactName}
-                    onChange={(e) => setContactsForm({...contactsForm, secondaryContactName: e.target.value})}
-                  />
-                  <Input 
-                    type="tel" 
-                    placeholder="Phone" 
-                    value={contactsForm.secondaryContactPhone}
-                    onChange={(e) => setContactsForm({...contactsForm, secondaryContactPhone: e.target.value})}
-                  />
+              )}
+
+            {/* Permissions Expandable Section */}
+            {item.title === "Permissions" &&
+              expandedSection === "Permissions" && (
+                <div className="mt-2 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <PermissionsSection />
                 </div>
-                <Button className="w-full mt-2" onClick={handleSaveContacts} disabled={isSaving}>
-                  {isSaving ? "Saving..." : "Save Contacts"}
-                </Button>
-              </div>
-            )}
+              )}
           </div>
         ))}
       </div>
 
-      <button 
+      {/* Sign Out */}
+      <button
         onClick={async () => {
           await firebaseAuthService.logout();
           navigate("/login");
@@ -153,14 +177,21 @@ export function ProfileScreen() {
         <LogOut className="w-4 h-4" /> Sign Out
       </button>
 
-      <button 
+      {/* Delete Account */}
+      <button
         onClick={async () => {
-          if (window.confirm("Are you sure you want to permanently delete your account? This action cannot be undone and will delete all your emergency data.")) {
+          if (
+            window.confirm(
+              "Are you sure you want to permanently delete your account? This action cannot be undone and will delete all your emergency data."
+            )
+          ) {
             try {
               await firebaseAuthService.deleteAccount();
               navigate("/login");
             } catch (err) {
-              alert("Failed to delete account. You may need to sign in again to perform this action.");
+              alert(
+                "Failed to delete account. You may need to sign in again to perform this action."
+              );
               console.error(err);
             }
           }
