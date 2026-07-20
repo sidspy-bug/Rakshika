@@ -9,13 +9,14 @@ import { RegisterScreen } from "./pages/RegisterScreen";
 import { CommunityScreen } from "./pages/CommunityScreen";
 import { ProfileScreen } from "./pages/ProfileScreen";
 import { FakeCallScreen } from "./pages/FakeCallScreen";
+import { LandingPage } from "./pages/LandingPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("access_token");
   const location = useLocation();
 
   if (!token) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/welcome" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;
@@ -26,6 +27,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Auth Routes */}
+        <Route path="/welcome" element={<LandingPage />} />
         <Route path="/login" element={<LoginScreen />} />
         <Route path="/register" element={<RegisterScreen />} />
 
@@ -42,7 +44,7 @@ export default function App() {
         <Route path="/sos" element={<ProtectedRoute><SosScreen /></ProtectedRoute>} />
         <Route path="/fake-call" element={<ProtectedRoute><FakeCallScreen /></ProtectedRoute>} />
         
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/welcome" replace />} />
       </Routes>
     </BrowserRouter>
   );

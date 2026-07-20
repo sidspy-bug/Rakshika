@@ -1,13 +1,109 @@
-import { ShieldAlert, MapPin, PhoneCall, Mic, Siren } from "lucide-react";
+import { useState, useRef } from "react";
+import { ShieldAlert, MapPin, PhoneCall, Mic, Siren, Square, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { GlassCard } from "../components/ui/GlassCard";
+import { motion, AnimatePresence } from "framer-motion";
+
+function Toast({ message }: { message: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -50 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -50 }}
+      className="fixed top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-full font-bold text-sm shadow-xl z-[200] flex items-center gap-2"
+    >
+      <CheckCircle2 className="w-4 h-4 text-green-500" /> {message}
+    </motion.div>
+  );
+}
 
 export function Home() {
   const navigate = useNavigate();
+  const [guardianMode, setGuardianMode] = useState(false);
+  
+  // Siren state
+  const [isSirenPlaying, setIsSirenPlaying] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  
+  // Record state
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [showToast, setShowToast] = useState("");
+
+  const toggleSiren = () => {
+    if (isSirenPlaying) {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close();
+        audioCtxRef.current = null;
+      }
+      setIsSirenPlaying(false);
+    } else {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
+      
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(400, ctx.currentTime);
+      
+      // Sweep frequency to simulate siren
+      setInterval(() => {
+        if (!audioCtxRef.current) return;
+        osc.frequency.setTargetAtTime(800, ctx.currentTime, 0.5);
+        setTimeout(() => {
+           if (!audioCtxRef.current) return;
+           osc.frequency.setTargetAtTime(400, ctx.currentTime, 0.5);
+        }, 500);
+      }, 1000);
+
+      const gain = ctx.createGain();
+      gain.gain.value = 0.5;
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      oscillatorRef.current = osc;
+      
+      setIsSirenPlaying(true);
+      showToastMessage("Siren activated!");
+    }
+  };
+
+  const toggleRecord = async () => {
+    if (isRecording) {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+      }
+      setIsRecording(false);
+      showToastMessage("Recording saved securely.");
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        const recorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = recorder;
+        recorder.start();
+        setIsRecording(true);
+        showToastMessage("Recording started...");
+      } catch (err) {
+        console.warn(err);
+        showToastMessage("Microphone/Camera permission denied.");
+      }
+    }
+  };
+
+  const showToastMessage = (msg: string) => {
+    setShowToast(msg);
+    setTimeout(() => setShowToast(""), 3000);
+  };
 
   return (
-    <div className="min-h-full p-6 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="min-h-full p-6 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+      <AnimatePresence>
+        {showToast && <Toast message={showToast} />}
+      </AnimatePresence>
       {/* Header */}
       <header className="flex justify-between items-center mt-4">
         <div>
@@ -42,18 +138,24 @@ export function Home() {
           <span className="font-semibold text-sm text-gray-800">Fake Call</span>
         </GlassCard>
 
-        <GlassCard className="flex flex-col items-center justify-center p-4 gap-3 cursor-pointer hover:bg-gray-50 transition-colors border-2 border-transparent hover:border-gray-200">
-          <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
+        <GlassCard 
+          className={`flex flex-col items-center justify-center p-4 gap-3 cursor-pointer transition-colors border-2 ${isSirenPlaying ? 'border-orange-500 bg-orange-50' : 'border-transparent hover:border-gray-200 hover:bg-gray-50'}`}
+          onClick={toggleSiren}
+        >
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isSirenPlaying ? 'bg-orange-500 text-white animate-pulse' : 'bg-orange-100 text-orange-600'}`}>
             <Siren className="w-6 h-6" />
           </div>
-          <span className="font-semibold text-sm text-gray-800">Siren</span>
+          <span className="font-semibold text-sm text-gray-800">{isSirenPlaying ? "Stop Siren" : "Siren"}</span>
         </GlassCard>
         
-        <GlassCard className="flex flex-col items-center justify-center p-4 gap-3 cursor-pointer hover:bg-gray-50 transition-colors border-2 border-transparent hover:border-gray-200">
-          <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
-            <Mic className="w-6 h-6" />
+        <GlassCard 
+          className={`flex flex-col items-center justify-center p-4 gap-3 cursor-pointer transition-colors border-2 ${isRecording ? 'border-purple-500 bg-purple-50' : 'border-transparent hover:border-gray-200 hover:bg-gray-50'}`}
+          onClick={toggleRecord}
+        >
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isRecording ? 'bg-purple-500 text-white animate-pulse' : 'bg-purple-100 text-purple-600'}`}>
+            {isRecording ? <Square className="w-6 h-6 fill-current" /> : <Mic className="w-6 h-6" />}
           </div>
-          <span className="font-semibold text-sm text-gray-800">Record</span>
+          <span className="font-semibold text-sm text-gray-800">{isRecording ? "Stop Recording" : "Record"}</span>
         </GlassCard>
 
         <GlassCard className="flex flex-col items-center justify-center p-4 gap-3 cursor-pointer hover:bg-gray-50 transition-colors border-2 border-transparent hover:border-gray-200" onClick={() => navigate('/ai')}>
@@ -66,13 +168,18 @@ export function Home() {
       
       {/* Current Status */}
       <section className="mt-4">
-        <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-5 text-white flex items-center justify-between shadow-lg">
+        <div className={`rounded-2xl p-5 text-white flex items-center justify-between shadow-lg transition-colors ${guardianMode ? 'bg-gradient-to-r from-emerald-600 to-emerald-800' : 'bg-gradient-to-r from-gray-900 to-gray-800'}`}>
           <div>
             <h3 className="font-bold text-lg">Guardian Mode</h3>
-            <p className="text-gray-300 text-sm mt-1">Live location hidden.</p>
+            <p className="text-gray-300 text-sm mt-1">{guardianMode ? "Live location actively hidden." : "Live location hidden."}</p>
           </div>
-          <Button variant="secondary" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
-            Enable
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+            onClick={() => setGuardianMode(!guardianMode)}
+          >
+            {guardianMode ? "Disable" : "Enable"}
           </Button>
         </div>
       </section>

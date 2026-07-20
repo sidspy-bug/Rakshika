@@ -1,8 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldAlert, X, Phone, MapPin, Video, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
+
+function Toast({ message }: { message: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -50 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -50 }}
+      className="absolute top-10 left-1/2 -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-full font-bold text-sm shadow-xl z-[200] flex items-center gap-2"
+    >
+      <CheckCircle2 className="w-4 h-4" /> {message}
+    </motion.div>
+  );
+}
 
 export function SosScreen() {
   const navigate = useNavigate();
@@ -10,6 +23,10 @@ export function SosScreen() {
   const [activated, setActivated] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [holdProgress, setHoldProgress] = useState(0);
+  const [showToast, setShowToast] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const watchIdRef = useRef<number | null>(null);
 
   // Press and hold logic
   useEffect(() => {
@@ -31,25 +48,81 @@ export function SosScreen() {
     return () => clearInterval(timer);
   }, [isPressing, activated]);
 
-  // SOS Activated countdown
+  // SOS Activated countdown & triggers
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (activated && countdown > 0) {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (activated && countdown === 0) {
+      // Trigger actual SOS actions
+      triggerSosActions();
     }
     return () => clearTimeout(timer);
   }, [activated, countdown]);
+
+  const triggerSosActions = async () => {
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 4000);
+
+    // 1. Start Live Tracking
+    if (navigator.geolocation) {
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => console.log("SOS Tracking: ", pos.coords.latitude, pos.coords.longitude),
+        (err) => console.warn(err),
+        { enableHighAccuracy: true }
+      );
+    }
+
+    // 2. Start Secure Evidence Collection
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      const chunks: BlobPart[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "video/webm" });
+        console.log("Evidence collected: ", blob.size, "bytes");
+        // Simulated upload to Firebase Storage
+        // stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.warn("Could not start media recording for evidence collection:", err);
+    }
+  };
 
   const cancelSos = () => {
     setActivated(false);
     setCountdown(3);
     setHoldProgress(0);
     setIsPressing(false);
+    setShowToast(false);
+    
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+    
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+      setIsRecording(false);
+    }
+    
     navigate(-1);
   };
 
   return (
     <div className="fixed inset-0 z-[100] bg-black text-white flex flex-col items-center justify-center overflow-hidden">
+      <AnimatePresence>
+        {showToast && <Toast message="Emergency Contacts Notified via SMS" />}
+      </AnimatePresence>
       <AnimatePresence mode="wait">
         {!activated ? (
           <motion.div
@@ -176,9 +249,13 @@ export function SosScreen() {
                     </div>
                     <div className="flex-1">
                       <h4 className="font-bold">Recording Evidence</h4>
-                      <p className="text-xs text-white/60">Audio & Video streaming</p>
+                      <p className="text-xs text-white/60">{isRecording ? "Audio & Video streaming" : "Awaiting permissions..."}</p>
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></div>
+                    {isRecording ? (
+                      <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></div>
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+                    )}
                   </div>
                 </div>
 

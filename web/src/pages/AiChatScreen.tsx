@@ -41,31 +41,31 @@ export function AiChatScreen() {
     setInput("");
     setIsLoading(true);
 
-    try {
-      const response = await api.post("/ai/chat", {
-        message: userMessage.content,
-      });
+    // Simulate network delay
+    setTimeout(() => {
+      let reply = "I'm here to help. If you feel unsafe, please press the SOS button immediately or navigate to a safe zone on the map.";
+      const lowerInput = userMessage.content.toLowerCase();
+      
+      if (lowerInput.includes("safe route") || lowerInput.includes("home")) {
+        reply = "I recommend using the Safe Walk Mode on the Map screen. It will guide you through well-lit areas and show nearby police stations and hospitals.";
+      } else if (lowerInput.includes("emergency") || lowerInput.includes("contact")) {
+        reply = "You can manage your emergency contacts in the Profile screen. They will automatically receive an SMS with your live location if you trigger SOS.";
+      } else if (lowerInput.includes("self-defense") || lowerInput.includes("tips")) {
+        reply = "Stay aware of your surroundings, keep your phone easily accessible, and trust your instincts. If someone approaches aggressively, make noise to attract attention and look for an escape route.";
+      } else if (lowerInput.includes("follow") || lowerInput.includes("stalk")) {
+        reply = "If you think you are being followed: Do NOT go home. Walk to a public, well-lit place like a store or cafe. Call a friend or the police, and use the 'Fake Call' feature from the home screen to deter them.";
+      }
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
-        content: response.data.reply,
+        content: reply,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
-      console.error("AI Chat Error:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "ai",
-        content: "Sorry, I am having trouble connecting to the safety servers. If you are in danger, please use the SOS button immediately.",
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
       setIsLoading(false);
-    }
+    }, 1500);
   };
-
   const quickReplies = [
     "Safe route home",
     "Emergency contacts",

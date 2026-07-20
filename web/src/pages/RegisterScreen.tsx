@@ -54,14 +54,16 @@ export function RegisterScreen() {
       setErrorMsg("");
       try {
         // Step 1: Register User via Firebase
+        const { email, password, fullName, phone, ...extraProfileData } = formData;
         await firebaseAuthService.register(
-          formData.email,
-          formData.password,
-          formData.fullName,
-          formData.phone
+          email,
+          password,
+          fullName,
+          phone,
+          extraProfileData
         );
         
-        // Step 2: (TODO) Save medical profile and contacts to user-service
+        // Step 2: Saved locally in mock mode via register service
         
         navigate("/");
       } catch (err: any) {

@@ -10,23 +10,6 @@ export const firebaseAuthService = {
    * Firebase Login Flow with Local Docker Backend prioritization
    */
   async login(email: string, password: string): Promise<string> {
-    // 1. Try local Docker backend first if running
-    try {
-      const response = await api.post("/auth/login", { email, password });
-      const accessToken = response.data?.tokens?.accessToken;
-      if (accessToken) {
-        localStorage.setItem("access_token", accessToken);
-        localStorage.setItem("user_profile", JSON.stringify(response.data.user));
-        return accessToken;
-      }
-    } catch (err: any) {
-      // If it is a real password/credentials rejection, throw immediately
-      if (err.response && err.response.status !== 502 && err.response.status !== 504 && err.code !== "ERR_NETWORK") {
-        throw new Error(err.response.data?.message || "Invalid email or password");
-      }
-      console.warn("Local Docker backend refused or timed out. Checking Firebase/Simulation.");
-    }
-
     if (IS_MOCK) {
       console.warn("Running in Hybrid Simulation mode. Bypassing Firebase network calls.");
       const usersRaw = localStorage.getItem("rakshika-mock-users");
@@ -63,24 +46,7 @@ export const firebaseAuthService = {
   /**
    * Firebase Registration Flow - Saves user details to Firestore Database upon creation
    */
-  async register(email: string, password: string, fullName: string, phone: string): Promise<string> {
-    // 1. Try local Docker backend first if running
-    try {
-      const response = await api.post("/auth/signup", { email, password, fullName, phone });
-      const accessToken = response.data?.tokens?.accessToken;
-      if (accessToken) {
-        localStorage.setItem("access_token", accessToken);
-        localStorage.setItem("user_profile", JSON.stringify(response.data.user));
-        return accessToken;
-      }
-    } catch (err: any) {
-      // If it is a real duplicate validation/rejection, throw immediately
-      if (err.response && err.response.status !== 502 && err.response.status !== 504 && err.code !== "ERR_NETWORK") {
-        throw new Error(err.response.data?.message || "Registration failed. Email/phone might already exist.");
-      }
-      console.warn("Local Docker backend refused or timed out. Checking Firebase/Simulation.");
-    }
-
+  async register(email: string, password: string, fullName: string, phone: string, extraProfileData: Record<string, any> = {}): Promise<string> {
     if (IS_MOCK) {
       console.warn("Running in Hybrid Simulation mode. Bypassing Firebase signup.");
       const usersRaw = localStorage.getItem("rakshika-mock-users");
@@ -90,11 +56,12 @@ export const firebaseAuthService = {
         throw new Error("Email address already registered");
       }
       
-      users[email.toLowerCase()] = { email, password, fullName, phone };
+      users[email.toLowerCase()] = { email, password, fullName, phone, ...extraProfileData };
       localStorage.setItem("rakshika-mock-users", JSON.stringify(users));
       
+      const userProfile = { email, fullName, phone, ...extraProfileData };
       localStorage.setItem("access_token", `mock-token-${email}`);
-      localStorage.setItem("user_profile", JSON.stringify({ email, fullName, phone }));
+      localStorage.setItem("user_profile", JSON.stringify(userProfile));
       return `mock-token-${email}`;
     }
 
@@ -110,7 +77,8 @@ export const firebaseAuthService = {
       email,
       phone,
       createdAt: new Date().toISOString(),
-      status: "active"
+      status: "active",
+      ...extraProfileData
     };
 
     await setDoc(doc(db, "users", userCredential.user.uid), profile);

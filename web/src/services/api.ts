@@ -26,7 +26,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    const token = localStorage.getItem("access_token");
+    const isMockToken = token && token.startsWith("mock-token");
+    
+    // Only force logout if it's a real token that got rejected
+    if (error.response && error.response.status === 401 && !isMockToken) {
       localStorage.removeItem("access_token");
       if (typeof window !== "undefined") {
         window.location.href = "/login";

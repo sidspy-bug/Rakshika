@@ -1,14 +1,43 @@
+import { useState } from "react";
 import { User, ShieldCheck, HeartPulse, History, Settings2, LogOut, ChevronRight, Bell, Smartphone } from "lucide-react";
 import { GlassCard } from "../components/ui/GlassCard";
 import { useNavigate } from "react-router-dom";
 import { firebaseAuthService } from "../services/firebaseAuth";
+import { Input } from "../components/ui/Input";
+import { Button } from "../components/ui/Button";
 
 export function ProfileScreen() {
   const navigate = useNavigate();
 
-  const profileRaw = localStorage.getItem("user_profile");
-  const user = profileRaw ? JSON.parse(profileRaw) : null;
+  const [user, setUser] = useState(() => {
+    const profileRaw = localStorage.getItem("user_profile");
+    return profileRaw ? JSON.parse(profileRaw) : null;
+  });
+  
+  const [showContacts, setShowContacts] = useState(false);
+  const [contactsForm, setContactsForm] = useState({
+    primaryContactName: user?.primaryContactName || "",
+    primaryContactPhone: user?.primaryContactPhone || "",
+    secondaryContactName: user?.secondaryContactName || "",
+    secondaryContactPhone: user?.secondaryContactPhone || "",
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
   const fullName = user?.fullName || "Jane Doe";
+
+  const handleSaveContacts = () => {
+    setIsSaving(true);
+    const updatedUser = { ...user, ...contactsForm };
+    localStorage.setItem("user_profile", JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    
+    // If we wanted to save to Firebase, we would do it here using setDoc
+    
+    setTimeout(() => {
+      setIsSaving(false);
+      setShowContacts(false);
+    }, 500);
+  };
 
   const menuItems = [
     { icon: ShieldCheck, title: "Emergency Contacts", subtitle: "Manage primary and secondary contacts" },
@@ -54,15 +83,62 @@ export function ProfileScreen() {
 
       <div className="space-y-3">
         {menuItems.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors">
-            <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center shrink-0">
-              <item.icon className="w-5 h-5 text-gray-600" />
+          <div key={idx} className="flex flex-col">
+            <div 
+              className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => {
+                if (item.title === "Emergency Contacts") {
+                  setShowContacts(!showContacts);
+                }
+              }}
+            >
+              <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center shrink-0">
+                <item.icon className="w-5 h-5 text-gray-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-bold text-sm text-gray-900">{item.title}</h4>
+                <p className="text-xs text-gray-500 mt-0.5">{item.subtitle}</p>
+              </div>
+              <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${showContacts && item.title === "Emergency Contacts" ? "rotate-90" : ""}`} />
             </div>
-            <div className="flex-1">
-              <h4 className="font-bold text-sm text-gray-900">{item.title}</h4>
-              <p className="text-xs text-gray-500 mt-0.5">{item.subtitle}</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            
+            {item.title === "Emergency Contacts" && showContacts && (
+              <div className="mt-2 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm space-y-4 animate-in slide-in-from-top-2">
+                <div className="space-y-3">
+                  <h5 className="text-sm font-bold text-gray-700">Primary Contact</h5>
+                  <Input 
+                    type="text" 
+                    placeholder="Name" 
+                    value={contactsForm.primaryContactName}
+                    onChange={(e) => setContactsForm({...contactsForm, primaryContactName: e.target.value})}
+                  />
+                  <Input 
+                    type="tel" 
+                    placeholder="Phone" 
+                    value={contactsForm.primaryContactPhone}
+                    onChange={(e) => setContactsForm({...contactsForm, primaryContactPhone: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-3 pt-2">
+                  <h5 className="text-sm font-bold text-gray-700">Secondary Contact</h5>
+                  <Input 
+                    type="text" 
+                    placeholder="Name" 
+                    value={contactsForm.secondaryContactName}
+                    onChange={(e) => setContactsForm({...contactsForm, secondaryContactName: e.target.value})}
+                  />
+                  <Input 
+                    type="tel" 
+                    placeholder="Phone" 
+                    value={contactsForm.secondaryContactPhone}
+                    onChange={(e) => setContactsForm({...contactsForm, secondaryContactPhone: e.target.value})}
+                  />
+                </div>
+                <Button className="w-full mt-2" onClick={handleSaveContacts} disabled={isSaving}>
+                  {isSaving ? "Saving..." : "Save Contacts"}
+                </Button>
+              </div>
+            )}
           </div>
         ))}
       </div>

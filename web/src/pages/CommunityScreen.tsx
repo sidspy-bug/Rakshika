@@ -1,13 +1,29 @@
+import { useState, useEffect } from "react";
 import { Shield, MapPin, Search, Star, PhoneCall } from "lucide-react";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Button } from "../components/ui/Button";
 
 export function CommunityScreen() {
-  const volunteers = [
-    { name: "Priya Sharma", role: "Verified Responder", distance: "0.2 km", rating: 4.9, available: true },
-    { name: "Rahul Verma", role: "Community Guard", distance: "0.5 km", rating: 4.8, available: true },
-    { name: "Anita Desai", role: "Medical Professional", distance: "1.1 km", rating: 5.0, available: false },
+  const initialVolunteers = [
+    { name: "Priya Sharma", role: "Verified Responder", baseDistance: 0.2, rating: 4.9, available: true },
+    { name: "Rahul Verma", role: "Community Guard", baseDistance: 0.5, rating: 4.8, available: true },
+    { name: "Anita Desai", role: "Medical Professional", baseDistance: 1.1, rating: 5.0, available: false },
   ];
+
+  const [volunteers, setVolunteers] = useState(initialVolunteers.map(v => ({...v, distance: v.baseDistance.toFixed(1)})));
+
+  useEffect(() => {
+    // Simulate real-time movement of responders
+    const interval = setInterval(() => {
+      setVolunteers(prev => prev.map(v => {
+        if (!v.available) return v;
+        const variation = (Math.random() - 0.5) * 0.1;
+        const newDist = Math.max(0.1, v.baseDistance + variation);
+        return { ...v, distance: newDist.toFixed(1), baseDistance: newDist };
+      }));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="p-4 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -61,7 +77,7 @@ export function CommunityScreen() {
                 <h3 className="font-bold text-sm text-gray-900">{vol.name}</h3>
                 <p className="text-xs text-[#D32F2F] font-semibold">{vol.role}</p>
                 <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {vol.distance}</span>
+                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {vol.distance} km</span>
                   <span className="flex items-center gap-1"><Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> {vol.rating}</span>
                 </div>
               </div>
