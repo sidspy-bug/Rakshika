@@ -1,13 +1,16 @@
 {
-  "name": "web",
+  "name": "rakshika",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "India's most intelligent women safety ecosystem",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
