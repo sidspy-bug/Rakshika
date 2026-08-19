@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Shield, Loader2, Sparkles } from "lucide-react";
-import { api } from "../services/api";
+import { useUserLocation } from "../hooks/useUserLocation";
+import { useGisData } from "../hooks/useGisData";
+import { reverseGeocode } from "../services/gisService";
+import axios from "axios";
 
 type Message = {
   id: string;
@@ -9,15 +12,19 @@ type Message = {
 };
 
 export function AiChatScreen() {
+  const { location: userLocation } = useUserLocation();
+  const { helpCenters, incidents } = useGisData({ userLocation, destination: null });
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       role: "ai",
-      content: "Hello. I am Rakshika AI, your safety assistant. How can I help you stay safe today?",
+      content: "Hello sister. I am Rakshika, your personal safety companion. I am actively monitoring your location to keep you safe. How can I help you right now?",
     },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [currentAddress, setCurrentAddress] = useState<string>("Locating your current address...");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -28,44 +35,139 @@ export function AiChatScreen() {
     scrollToBottom();
   }, [messages]);
 
+  // Reverse geocode user location on load/change
+  useEffect(() => {
+    if (userLocation) {
+      reverseGeocode(userLocation).then((addr) => {
+        setCurrentAddress(addr);
+      });
+    }
+  }, [userLocation]);
+
   const handleSend = async () => {
-    if (!input.trim()) return;
+    const userTextInput = input.trim();
+    if (!userTextInput) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: userTextInput,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
-    // Simulate network delay
-    setTimeout(() => {
-      let reply = "I'm here to help. If you feel unsafe, please press the SOS button immediately or navigate to a safe zone on the map.";
-      const lowerInput = userMessage.content.toLowerCase();
-      
-      if (lowerInput.includes("safe route") || lowerInput.includes("home")) {
-        reply = "I recommend using the Safe Walk Mode on the Map screen. It will guide you through well-lit areas and show nearby police stations and hospitals.";
-      } else if (lowerInput.includes("emergency") || lowerInput.includes("contact")) {
-        reply = "You can manage your emergency contacts in the Profile screen. They will automatically receive an SMS with your live location if you trigger SOS.";
-      } else if (lowerInput.includes("self-defense") || lowerInput.includes("tips")) {
-        reply = "Stay aware of your surroundings, keep your phone easily accessible, and trust your instincts. If someone approaches aggressively, make noise to attract attention and look for an escape route.";
-      } else if (lowerInput.includes("follow") || lowerInput.includes("stalk")) {
-        reply = "If you think you are being followed: Do NOT go home. Walk to a public, well-lit place like a store or cafe. Call a friend or the police, and use the 'Fake Call' feature from the home screen to deter them.";
-      }
+    const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+
+    if (!apiKey || apiKey === "mock-key") {
+      console.warn("VITE_OPENROUTER_API_KEY not found or is mock. Falling back to local simulator.");
+      setTimeout(() => {
+        let reply = `I am tracking your location near ${currentAddress}. If you feel unsafe, please press the red SOS button immediately or head to the nearest lit area.`;
+        const lowerInput = userTextInput.toLowerCase();
+        
+        if (lowerInput.includes("safe route") || lowerInput.includes("home")) {
+          reply = `📍 **Location Check:** You are at ${currentAddress}.\n\nI recommend using the **Safe Walk Mode** on the Map screen. It will steer you clear of unlit streets and guide you through well-lit safe zones.`;
+        } else if (lowerInput.includes("emergency") || lowerInput.includes("contact")) {
+          reply = `🚨 **Emergency Mode:** I have your coordinates at ${currentAddress}. Your emergency contacts will receive your live tracking link instantly if you trigger the **SOS button**.`;
+        } else if (lowerInput.includes("follow") || lowerInput.includes("stalk") || lowerInput.includes("scared")) {
+          reply = `⚠️ **STAY CALM & ACT FAST:**\n1. Do NOT head straight home.\n2. Walk immediately into a brightly lit public place (shop, cafe, hospital).\n3. Use the **Fake Call** button on the home screen or press **SOS** if threatened.`;
+        }
+
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "ai",
+          content: reply,
+        };
+
+        setMessages((prev) => [...prev, aiMessage]);
+        setIsLoading(false);
+      }, 1200);
+      return;
+    }
+
+    try {
+      // Build detailed location & surroundings context
+      const nearestSafeSpots = helpCenters
+        .slice(0, 5)
+        .map((c) => `- **${c.name}** (${c.type.replace("_", " ")}) ~${Math.round(c.distance || 0)}m away ${c.phone ? `[Call: ${c.phone}]` : ""}`)
+        .join("\n");
+
+      const localDangerZones = incidents
+        .slice(0, 3)
+        .map((i) => `- **${i.title}**: ${i.description}`)
+        .join("\n");
+
+      const systemPrompt = `You are Rakshika, a real-time personal safety companion and protective guardian for women. Your highest priority is the user's physical safety and peace of mind.
+
+MANDATORY GEOLOCATION PROTOCOL:
+1. ALWAYS anchor your response with her current location first. Acknowledge her area (${currentAddress}) upfront so she knows you have her location locked in.
+2. Directly recommend the SPECIFIC safe havens, police stations, or volunteers listed below with their distances when giving directions or help.
+3. Warn her about any unlit streets or danger alerts in her immediate vicinity.
+
+LIVE GEOLOCATION DATA:
+- Address: ${currentAddress}
+- GPS Coordinates: ${userLocation ? `${userLocation.lat}, ${userLocation.lng}` : "Acquiring lock..."}
+- Verified Nearby Safe Havens & Police Stations:
+${nearestSafeSpots || "Searching live OpenStreetMap database..."}
+- Local Safety Alerts / Unlit Streets:
+${localDangerZones || "No unlit street warnings reported."}
+
+RESPONSE STYLES & TONALITY:
+- Be protective, calm, sharp, empathetic, and scannable. Use **bold formatting** for key locations, distances, and actions.
+- Emergency/Threat (being followed, feeling scared, dark street): 
+  - Immediately advise pressing the RED SOS button or calling 112 / emergency services.
+  - Give 2 concise physical actions (e.g. "Enter the nearest open store", "Do not isolate yourself").
+  - Name the exact closest safe spot from the list above.
+- Non-Emergency / General Advice:
+  - Provide practical self-defense or safe navigation steps grounded in her current location.
+  - End with a caring, protective follow-up question (e.g. "Are you walking alone right now? Would you like me to highlight the path to the nearest police station?").`;
+
+      const chatHistory = messages.map((msg) => ({
+        role: msg.role === "ai" ? "assistant" : "user",
+        content: msg.content,
+      }));
+
+      const payload = {
+        model: "google/gemma-4-31b-it:free",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...chatHistory,
+          { role: "user", content: userTextInput },
+        ],
+      };
+
+      const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", payload, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "Rakshika Safety Web",
+        },
+      });
+
+      const aiReply = response.data?.choices?.[0]?.message?.content || "I'm having trouble analyzing the safety risk right now. If you are in danger, please trigger SOS.";
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
-        content: reply,
+        content: aiReply,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+    } catch (err) {
+      console.error("OpenRouter request failed:", err);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "ai",
+        content: "I couldn't reach the AI server. Please make sure your network is active, or trigger SOS if you are in immediate danger.",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
+
   const quickReplies = [
     "Safe route home",
     "Emergency contacts",

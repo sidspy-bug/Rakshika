@@ -1,3 +1,4 @@
+import { calculateDistance } from "../utils/geo";
 import axios from "axios";
 import type { Coords } from "../types/gis";
 import type { RouteProfile, RouteSummary } from "../types/navigation";
@@ -116,23 +117,6 @@ function getStraightLineFallback(waypoints: Coords[]): RouteSummary {
   };
 }
 
-/**
- * Standard Haversine distance in meters
- */
-export function calculateDistance(p1: Coords, p2: Coords): number {
-  const R = 6371e3; // Earth radius in meters
-  const radLat1 = (p1.lat * Math.PI) / 180;
-  const radLat2 = (p2.lat * Math.PI) / 180;
-  const deltaLat = ((p2.lat - p1.lat) * Math.PI) / 180;
-  const deltaLng = ((p2.lng - p1.lng) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-    Math.cos(radLat1) * Math.cos(radLat2) * Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
-}
 
 /**
  * Checks if user is deviated from route.

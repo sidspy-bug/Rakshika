@@ -62,8 +62,32 @@ export function RegisterScreen() {
           phone,
           extraProfileData
         );
-        
         // Step 2: Saved locally in mock mode via register service
+
+        // Step 3: Seed Emergency Contacts into the new format
+        const emergencyContacts = [];
+        if (extraProfileData.primaryContactName || extraProfileData.primaryContactPhone) {
+          emergencyContacts.push({
+            id: Date.now().toString(),
+            name: extraProfileData.primaryContactName || "Primary Contact",
+            phone: extraProfileData.primaryContactPhone || "",
+            relation: "Family", // Default
+            isSynced: false,
+          });
+        }
+        if (extraProfileData.secondaryContactName || extraProfileData.secondaryContactPhone) {
+          emergencyContacts.push({
+            id: (Date.now() + 1).toString(),
+            name: extraProfileData.secondaryContactName || "Secondary Contact",
+            phone: extraProfileData.secondaryContactPhone || "",
+            relation: "Friend", // Default
+            isSynced: false,
+          });
+        }
+        
+        if (emergencyContacts.length > 0) {
+          localStorage.setItem("rakshika-emergency-contacts", JSON.stringify(emergencyContacts));
+        }
         
         navigate("/");
       } catch (err: any) {

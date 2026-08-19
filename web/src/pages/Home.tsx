@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ShieldAlert, MapPin, PhoneCall, Mic, Siren, Square, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
@@ -26,6 +26,7 @@ export function Home() {
   const [isSirenPlaying, setIsSirenPlaying] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const sirenIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Record state
   const [isRecording, setIsRecording] = useState(false);
@@ -38,6 +39,10 @@ export function Home() {
         audioCtxRef.current.close();
         audioCtxRef.current = null;
       }
+      if (sirenIntervalRef.current) {
+        clearInterval(sirenIntervalRef.current);
+        sirenIntervalRef.current = null;
+      }
       setIsSirenPlaying(false);
     } else {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -49,7 +54,7 @@ export function Home() {
       osc.frequency.setValueAtTime(400, ctx.currentTime);
       
       // Sweep frequency to simulate siren
-      setInterval(() => {
+      sirenIntervalRef.current = setInterval(() => {
         if (!audioCtxRef.current) return;
         osc.frequency.setTargetAtTime(800, ctx.currentTime, 0.5);
         setTimeout(() => {
@@ -98,6 +103,21 @@ export function Home() {
     setShowToast(msg);
     setTimeout(() => setShowToast(""), 3000);
   };
+
+  useEffect(() => {
+    return () => {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close();
+      }
+      if (sirenIntervalRef.current) {
+        clearInterval(sirenIntervalRef.current);
+      }
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
 
   return (
     <div className="min-h-full p-6 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">

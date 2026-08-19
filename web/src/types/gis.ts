@@ -3,9 +3,22 @@ export interface Coords {
   lng: number;
 }
 
-export const GIS_MARKER_TYPES = ["police", "hospital"] as const;
+export const GIS_MARKER_TYPES = [
+  "police",
+  "women_police",
+  "hospital",
+  "safe_gathering",
+  "safe_college",
+  "volunteer",
+] as const;
 
-export type HelpCenterType = "police" | "hospital";
+export type HelpCenterType =
+  | "police"
+  | "women_police"
+  | "hospital"
+  | "safe_gathering"
+  | "safe_college"
+  | "volunteer";
 
 export interface HelpCenter {
   id: string;

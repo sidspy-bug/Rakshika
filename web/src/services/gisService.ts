@@ -1,3 +1,4 @@
+import { calculateDistance } from "../utils/geo";
 import axios from "axios";
 import type { Coords, HelpCenter, RouteDetails, Incident } from "../types/gis";
 
@@ -25,8 +26,8 @@ export async function searchAddress(query: string): Promise<{ name: string; lat:
       params: {
         q: query,
         format: "json",
-        countrycodes: "in", // Limit results to India for MVP
-        limit: 5,
+        addressdetails: 1,
+        limit: 7,
       },
     });
 
@@ -36,8 +37,29 @@ export async function searchAddress(query: string): Promise<{ name: string; lat:
       lng: parseFloat(item.lon),
     }));
   } catch (error) {
-    console.error("Geocoding failed:", error);
+    console.error("Geocoding search failed:", error);
     return [];
+  }
+}
+
+/**
+ * Reverse geocodes coordinates to a human-readable display name using OpenStreetMap Nominatim
+ */
+export async function reverseGeocode(coords: Coords): Promise<string> {
+  try {
+    const response = await axios.get(`${NOMINATIM_BASE_URL}/reverse`, {
+      headers,
+      params: {
+        lat: coords.lat,
+        lon: coords.lng,
+        format: "json",
+        zoom: 18,
+      },
+    });
+    return response.data.display_name || "Unknown Address";
+  } catch (error) {
+    console.error("Reverse geocoding failed:", error);
+    return `Location at ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`;
   }
 }
 
@@ -79,8 +101,8 @@ export async function getRoute(start: Coords, end: Coords): Promise<RouteDetails
         [start.lat, start.lng],
         [end.lat, end.lng],
       ],
-      distance: calculateHaversineDistance(start, end),
-      duration: calculateHaversineDistance(start, end) / 1.2, // ~1.2 m/s pedestrian speed
+      distance: calculateDistance(start, end),
+      duration: calculateDistance(start, end) / 1.2, // ~1.2 m/s pedestrian speed
     };
   }
 }
@@ -96,10 +118,17 @@ export async function getNearbyHelpCenters(center: Coords, radiusMeters: number 
       way["amenity"="police"](around:${radiusMeters},${center.lat},${center.lng});
       node["amenity"="hospital"](around:${radiusMeters},${center.lat},${center.lng});
       way["amenity"="hospital"](around:${radiusMeters},${center.lat},${center.lng});
+      node["amenity"~"university|college"](around:${radiusMeters},${center.lat},${center.lng});
+      way["amenity"~"university|college"](around:${radiusMeters},${center.lat},${center.lng});
+      node["leisure"="park"](around:${radiusMeters},${center.lat},${center.lng});
+      way["leisure"="park"](around:${radiusMeters},${center.lat},${center.lng});
+      node["amenity"~"community_centre|library"](around:${radiusMeters},${center.lat},${center.lng});
+      way["amenity"~"community_centre|library"](around:${radiusMeters},${center.lat},${center.lng});
     );
     out body center;
   `;
 
+  let centers: HelpCenter[] = [];
   try {
     const response = await axios.post(OVERPASS_BASE_URL, `data=${encodeURIComponent(query)}`, {
       headers: {
@@ -110,13 +139,32 @@ export async function getNearbyHelpCenters(center: Coords, radiusMeters: number 
     });
 
     const elements = response.data.elements || [];
-    return elements.map((el: any) => {
-      // Find latitude/longitude (either directly on node, or as center on way/relation)
+    centers = elements.map((el: any): HelpCenter => {
       const lat = el.lat !== undefined ? el.lat : (el.center ? el.center.lat : center.lat);
       const lng = el.lon !== undefined ? el.lon : (el.center ? el.center.lon : center.lng);
       
-      const type = el.tags?.amenity === "police" ? "police" : "hospital";
-      const name = el.tags?.name || (type === "police" ? "Police Station" : "Hospital/Clinic");
+      let type: HelpCenter["type"] = "hospital";
+      let name = el.tags?.name || "";
+      const lowerName = name.toLowerCase();
+
+      if (el.tags?.amenity === "police") {
+        if (lowerName.includes("women") || lowerName.includes("mahila") || lowerName.includes("female") || lowerName.includes("girl")) {
+          type = "women_police";
+        } else {
+          type = "police";
+        }
+        if (!name) name = type === "women_police" ? "Women's Police Station" : "Police Station";
+      } else if (el.tags?.amenity === "hospital") {
+        type = "hospital";
+        if (!name) name = "Hospital/Clinic";
+      } else if (el.tags?.amenity === "university" || el.tags?.amenity === "college") {
+        type = "safe_college";
+        if (!name) name = "Safe Educational Campus";
+      } else if (el.tags?.leisure === "park" || el.tags?.amenity === "community_centre" || el.tags?.amenity === "library") {
+        type = "safe_gathering";
+        if (!name) name = "Safe Public Gathering Spot";
+      }
+
       const address = el.tags?.["addr:street"] 
         ? `${el.tags?.["addr:housenumber"] || ""} ${el.tags?.["addr:street"]}, ${el.tags?.["addr:city"] || ""}`
         : undefined;
@@ -129,25 +177,87 @@ export async function getNearbyHelpCenters(center: Coords, radiusMeters: number 
         lng,
         address,
         phone: el.tags?.phone || el.tags?.["contact:phone"] || undefined,
-        distance: calculateHaversineDistance(center, { lat, lng }),
+        distance: calculateDistance(center, { lat, lng }),
       };
     });
   } catch (error) {
     console.error("Overpass API failed, returning offline mock centers:", error);
-    return getMockHelpCenters(center);
+    centers = getMockHelpCenters(center);
   }
+
+  // Generate 3-4 fake volunteers near the user
+  const volunteers = getNearbyVolunteers(center);
+  return [...centers, ...volunteers];
+}
+
+export function getNearbyVolunteers(center: Coords): HelpCenter[] {
+  const volunteerNames = ["Priya Sharma", "Rahul Verma", "Anita Desai", "Sunita Rao", "Kavya Singh"];
+  const count = 3 + Math.floor(Math.random() * 2); // 3 or 4
+  const volunteers: HelpCenter[] = [];
+
+  for (let i = 0; i < count; i++) {
+    // Offset by roughly 200m to 1000m
+    const latOffset = (Math.random() - 0.5) * 0.015;
+    const lngOffset = (Math.random() - 0.5) * 0.015;
+    
+    volunteers.push({
+      id: `volunteer-${i}`,
+      name: `${volunteerNames[i % volunteerNames.length]} (Verified Volunteer)`,
+      type: "volunteer",
+      lat: center.lat + latOffset,
+      lng: center.lng + lngOffset,
+      phone: "+91" + Math.floor(1000000000 + Math.random() * 9000000000).toString(),
+      distance: calculateDistance(center, { lat: center.lat + latOffset, lng: center.lng + lngOffset }),
+      address: "⭐ 4.9 Rating | Active Responder",
+    });
+  }
+  return volunteers;
 }
 
 /**
  * Static mock incidents for danger zones (Reported incidents)
  */
-export function getReportedIncidents(center: Coords): Incident[] {
-  // Generates 2 mock incidents near the user location for demonstration
-  return [
+export async function getReportedIncidents(center: Coords): Promise<Incident[]> {
+  const query = `
+    [out:json][timeout:15];
+    (
+      way["highway"]["lit"="no"](around:2000,${center.lat},${center.lng});
+      way["highway"]["lit"="false"](around:2000,${center.lat},${center.lng});
+    );
+    out body center;
+  `;
+
+  let incidents: Incident[] = [];
+  try {
+    const response = await axios.post(OVERPASS_BASE_URL, `data=${encodeURIComponent(query)}`, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded", ...headers },
+      timeout: 10000,
+    });
+
+    const elements = response.data.elements || [];
+    incidents = elements.map((el: any, index: number): Incident => {
+      const lat = el.lat !== undefined ? el.lat : (el.center ? el.center.lat : center.lat);
+      const lng = el.lon !== undefined ? el.lon : (el.center ? el.center.lon : center.lng);
+      return {
+        id: `dark-street-${el.id || index}`,
+        title: "Unlit / Dark Street",
+        description: "Satellite/OSM data indicates this street lacks proper lighting. Avoid walking alone at night.",
+        lat,
+        lng,
+        severity: "medium",
+        createdAt: new Date().toISOString(),
+      };
+    });
+  } catch (err) {
+    console.error("Failed to fetch unlit streets:", err);
+  }
+
+  // Always append some mock local reported incidents for demonstration
+  const mockIncidents: Incident[] = [
     {
       id: "inc-1",
-      title: "Poorly Lit Street",
-      description: "Reported by community users: Streetlights are completely broken and dark at night.",
+      title: "Suspicious Activity",
+      description: "Reported by community users: Suspicious group hanging around this corner.",
       lat: center.lat + 0.003,
       lng: center.lng - 0.004,
       severity: "medium",
@@ -156,29 +266,15 @@ export function getReportedIncidents(center: Coords): Incident[] {
     {
       id: "inc-2",
       title: "Unsafe Gathering / Harassment Area",
-      description: "Multiple reports of active public intoxication and catcalling near the local park entrance.",
+      description: "Multiple reports of active public intoxication and catcalling near the park entrance.",
       lat: center.lat - 0.005,
       lng: center.lng + 0.003,
       severity: "high",
       createdAt: new Date().toISOString(),
     },
   ];
-}
 
-// Helper: Haversine distance formula
-function calculateHaversineDistance(p1: Coords, p2: Coords): number {
-  const R = 6371e3; // Earth radius in meters
-  const phi1 = (p1.lat * Math.PI) / 180;
-  const phi2 = (p2.lat * Math.PI) / 180;
-  const deltaPhi = ((p2.lat - p1.lat) * Math.PI) / 180;
-  const deltaLambda = ((p2.lng - p1.lng) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c; // in meters
+  return [...incidents.slice(0, 5), ...mockIncidents]; // Cap unlit streets to top 5 to avoid clutter
 }
 
 // Fallback mock centers for offline/rate-limited queries

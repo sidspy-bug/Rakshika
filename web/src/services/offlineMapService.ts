@@ -94,6 +94,50 @@ export function getTileUrlsInBBox(bbox: BBox): string[] {
   return urls;
 }
 
+export function getCustomOfflineRegions(): OfflineCity[] {
+  const raw = localStorage.getItem("rakshika-custom-offline-regions");
+  return raw ? JSON.parse(raw) : [];
+}
+
+export function saveCustomOfflineRegions(regions: OfflineCity[]) {
+  localStorage.setItem("rakshika-custom-offline-regions", JSON.stringify(regions));
+}
+
+export function getAllOfflineCities(): OfflineCity[] {
+  return [...OFFLINE_CITIES, ...getCustomOfflineRegions()];
+}
+
+export async function downloadCustomArea(
+  center: { lat: number; lng: number },
+  areaName: string,
+  onProgress: (downloaded: number, total: number) => void
+): Promise<string> {
+  const customId = `custom-${Date.now()}`;
+  
+  // Calculate approx 40-50km box (±0.36 degrees)
+  const offset = 0.36;
+  const customCity: OfflineCity = {
+    id: customId,
+    name: areaName || `Offline Area (${center.lat.toFixed(2)}, ${center.lng.toFixed(2)})`,
+    bbox: {
+      minLat: center.lat - offset,
+      maxLat: center.lat + offset,
+      minLng: center.lng - offset,
+      maxLng: center.lng + offset,
+    },
+    sizeEstimate: "~15 MB",
+    totalTiles: 1360,
+    isCustom: true,
+  };
+
+  const customRegions = getCustomOfflineRegions();
+  customRegions.push(customCity);
+  saveCustomOfflineRegions(customRegions);
+
+  await downloadCity(customId, onProgress);
+  return customId;
+}
+
 /**
  * Downloads all tiles for a city and saves them into the browser's Cache Storage
  */
@@ -101,7 +145,7 @@ export async function downloadCity(
   cityId: string,
   onProgress: (downloaded: number, total: number) => void
 ): Promise<void> {
-  const city = OFFLINE_CITIES.find((c) => c.id === cityId);
+  const city = getAllOfflineCities().find((c) => c.id === cityId);
   if (!city) throw new Error("City not found");
 
   const urls = getTileUrlsInBBox(city.bbox);
@@ -151,6 +195,13 @@ export async function deleteCity(cityId: string): Promise<void> {
   const cacheName = `rakshika-map-${cityId}`;
   await caches.delete(cacheName);
   localStorage.removeItem(`city-downloaded-${cityId}`);
+
+  // If it's a custom city, remove from custom list
+  let customRegions = getCustomOfflineRegions();
+  if (customRegions.some((r) => r.id === cityId)) {
+    customRegions = customRegions.filter((r) => r.id !== cityId);
+    saveCustomOfflineRegions(customRegions);
+  }
 }
 
 /**
@@ -181,7 +232,7 @@ export async function getCachedTileUrl(originalUrl: string): Promise<string | nu
   // Normalize subdomain differences in cached keys
   const cleanUrl = originalUrl.replace(/\/\/([a-d])\./, "//{s}.");
   
-  const cacheKeys = OFFLINE_CITIES.map((c) => `rakshika-map-${c.id}`);
+  const cacheKeys = getAllOfflineCities().map((c) => `rakshika-map-${c.id}`);
   
   for (const cacheName of cacheKeys) {
     try {

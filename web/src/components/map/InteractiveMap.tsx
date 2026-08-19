@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { getCachedTileUrl } from "../../services/offlineMapService";
 import type { Coords, HelpCenter, Incident, RouteDetails } from "../../types/gis";
 import type { Waypoint } from "../../types/navigation";
 import { Shield, Flame, Navigation, Crosshair, Loader2 } from "lucide-react";
@@ -67,20 +68,17 @@ export function InteractiveMap({
         const url = this.getTileUrl(coords);
 
         if (!navigator.onLine) {
-          // Dynamic import to prevent circular compilation issues
-          import("../../services/offlineMapService")
-            .then((module) => {
-              module.getCachedTileUrl(url).then((cachedBlobUrl) => {
-                if (cachedBlobUrl) {
-                  tile.src = cachedBlobUrl;
-                } else {
-                  // Fallback tile if map coordinate is missing from cache
-                  tile.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" style="background:%23111112"><rect width="256" height="256" fill="%23111112"/><text x="50%" y="50%" fill="%23222" font-family="sans-serif" font-size="9" dominant-baseline="middle" text-anchor="middle">Offline Tile (Not Cached)</text></svg>`;
-                }
-              });
+          getCachedTileUrl(url)
+            .then((cachedBlobUrl) => {
+              if (cachedBlobUrl) {
+                tile.src = cachedBlobUrl;
+              } else {
+                // Fallback tile if map coordinate is missing from cache
+                tile.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" style="background:%23111112"><rect width="256" height="256" fill="%23111112"/><text x="50%" y="50%" fill="%23222" font-family="sans-serif" font-size="9" dominant-baseline="middle" text-anchor="middle">Offline Tile (Not Cached)</text></svg>`;
+              }
             })
             .catch((err) => {
-              console.error("Failed to load offlineMapService:", err);
+              console.error("Failed to load tile from cache:", err);
               tile.src = "";
             });
         } else {
@@ -284,18 +282,45 @@ export function InteractiveMap({
     group.clearLayers();
 
     helpCenters.forEach((center) => {
-      const isPolice = center.type === "police";
-      const iconColor = isPolice ? "bg-emerald-600" : "bg-teal-600";
-      const iconEmoji = isPolice ? "🛡️" : "🏥";
+      let iconColor = "bg-teal-600";
+      let iconEmoji = "🏥";
+
+      switch (center.type) {
+        case "police":
+          iconColor = "bg-emerald-600";
+          iconEmoji = "🛡️";
+          break;
+        case "women_police":
+          iconColor = "bg-rose-500";
+          iconEmoji = "♀️👮‍♀️";
+          break;
+        case "safe_college":
+          iconColor = "bg-indigo-600";
+          iconEmoji = "🎓";
+          break;
+        case "safe_gathering":
+          iconColor = "bg-green-600";
+          iconEmoji = "🌳";
+          break;
+        case "volunteer":
+          iconColor = "bg-amber-500 animate-pulse";
+          iconEmoji = "🙋‍♀️";
+          break;
+        case "hospital":
+        default:
+          iconColor = "bg-teal-600";
+          iconEmoji = "🏥";
+          break;
+      }
 
       const icon = L.divIcon({
         className: "help-center-marker",
         html: `
           <div class="flex flex-col items-center cursor-pointer group">
-            <div class="w-8 h-8 ${iconColor} rounded-full border-2 border-white flex items-center justify-center shadow-lg transition-transform duration-200 hover:scale-125">
+            <div class="w-8 h-8 ${iconColor.replace(" animate-pulse", "")} rounded-full border-2 border-white flex items-center justify-center shadow-lg transition-transform duration-200 hover:scale-125 ${iconColor.includes("pulse") ? "animate-pulse" : ""}">
               <span class="text-xs text-white">${iconEmoji}</span>
             </div>
-            <div class="w-1 h-2 ${isPolice ? "bg-emerald-600" : "bg-teal-600"}"></div>
+            <div class="w-1 h-2 ${iconColor.replace(" animate-pulse", "")}"></div>
           </div>
         `,
         iconSize: [32, 40],
@@ -308,9 +333,9 @@ export function InteractiveMap({
       const popupContent = `
         <div class="font-sans text-gray-900 p-1">
           <h4 class="font-bold text-sm flex items-center gap-1">
-            ${isPolice ? "🛡️" : "🏥"} ${center.name}
+            ${iconEmoji} ${center.name}
           </h4>
-          <p class="text-xs text-gray-500 mt-1 capitalize">${center.type} Center</p>
+          <p class="text-xs text-gray-500 mt-1 capitalize">${center.type.replace("_", " ")}</p>
           ${addressText}
           ${phoneText}
         </div>

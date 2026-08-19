@@ -11,6 +11,7 @@ export interface OfflineCity {
   bbox: BBox;
   sizeEstimate: string; // e.g. "2.5 MB"
   totalTiles: number;
+  isCustom?: boolean;
 }
 
 export interface DownloadProgress {

@@ -1,30 +1,40 @@
 import { useState, useEffect } from "react";
-import { Download, Trash2, HardDrive, ShieldCheck, RefreshCw, X, Loader2 } from "lucide-react";
+import { Download, Trash2, HardDrive, ShieldCheck, RefreshCw, X, Loader2, MapPin } from "lucide-react";
 import { Button } from "../ui/Button";
 import { GlassCard } from "../ui/GlassCard";
 import {
-  OFFLINE_CITIES,
+  getAllOfflineCities,
   downloadCity,
+  downloadCustomArea,
   deleteCity,
   isCityDownloaded,
   getOfflineStorageEstimate,
 } from "../../services/offlineMapService";
+import type { Coords } from "../../types/gis";
+import type { OfflineCity } from "../../types/offline";
 
 interface OfflineManagerProps {
+  userLocation: Coords | null;
   onClose: () => void;
 }
 
-export function OfflineManager({ onClose }: OfflineManagerProps) {
+export function OfflineManager({ userLocation, onClose }: OfflineManagerProps) {
+  const [cities, setCities] = useState<OfflineCity[]>([]);
   const [downloadedCities, setDownloadedCities] = useState<Record<string, boolean>>({});
   const [downloadProgress, setDownloadProgress] = useState<Record<string, { downloaded: number; total: number; percentage: number }>>({});
   const [activeDownloads, setActiveDownloads] = useState<Record<string, boolean>>({});
   const [storageInfo, setStorageInfo] = useState<{ used: string; quota: string }>({ used: "0 MB", quota: "0 MB" });
   const [refreshStorage, setRefreshStorage] = useState(0);
+  const [customAreaName, setCustomAreaName] = useState("");
+  const [isDownloadingCustom, setIsDownloadingCustom] = useState(false);
 
   // Load downloaded status and storage stats
   useEffect(() => {
+    const allCities = getAllOfflineCities();
+    setCities(allCities);
+    
     const statusMap: Record<string, boolean> = {};
-    OFFLINE_CITIES.forEach((city) => {
+    allCities.forEach((city) => {
       statusMap[city.id] = isCityDownloaded(city.id);
     });
     setDownloadedCities(statusMap);
@@ -45,6 +55,28 @@ export function OfflineManager({ onClose }: OfflineManagerProps) {
       });
     });
   }, [refreshStorage]);
+
+  const handleDownloadCustom = async () => {
+    if (!userLocation) return;
+    setIsDownloadingCustom(true);
+    try {
+      const customId = await downloadCustomArea(userLocation, customAreaName, (downloaded, total) => {
+        const percentage = Math.round((downloaded / total) * 100);
+        setDownloadProgress((prev) => ({
+          ...prev,
+          [customId]: { downloaded, total, percentage },
+        }));
+      });
+      setDownloadedCities((prev) => ({ ...prev, [customId]: true }));
+      setRefreshStorage((prev) => prev + 1);
+      setCustomAreaName("");
+    } catch (err) {
+      console.error("Custom download failed:", err);
+      alert("Custom download failed. Please check your internet connection.");
+    } finally {
+      setIsDownloadingCustom(false);
+    }
+  };
 
   const handleDownload = async (cityId: string) => {
     setActiveDownloads((prev) => ({ ...prev, [cityId]: true }));
@@ -70,7 +102,7 @@ export function OfflineManager({ onClose }: OfflineManagerProps) {
   };
 
   const handleDelete = async (cityId: string) => {
-    if (confirm("Are you sure you want to delete this offline city map package?")) {
+    if (confirm("Are you sure you want to delete this offline map package?")) {
       try {
         await deleteCity(cityId);
         setDownloadedCities((prev) => ({ ...prev, [cityId]: false }));
@@ -120,9 +152,35 @@ export function OfflineManager({ onClose }: OfflineManagerProps) {
         </div>
       </div>
 
+      {/* Custom Location Downloader */}
+      {userLocation && (
+        <div className="mb-6 bg-emerald-950/20 border border-emerald-900/30 p-4 rounded-xl">
+          <h4 className="font-bold text-sm text-emerald-400 flex items-center gap-2 mb-2">
+            <MapPin className="w-4 h-4" /> Download Current Area (~40km)
+          </h4>
+          <div className="flex gap-2 mt-3">
+            <input
+              type="text"
+              placeholder="e.g. Home, Local Area"
+              value={customAreaName}
+              onChange={(e) => setCustomAreaName(e.target.value)}
+              className="flex-1 bg-black/50 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-emerald-500 transition-colors"
+            />
+            <Button 
+              size="sm" 
+              onClick={handleDownloadCustom}
+              disabled={isDownloadingCustom}
+              className="px-4 py-2 text-xs"
+            >
+              {isDownloadingCustom ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Cities list */}
-      <div className="flex flex-col gap-4 max-h-80 overflow-y-auto pr-1">
-        {OFFLINE_CITIES.map((city) => {
+      <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto pr-1">
+        {cities.map((city) => {
           const isDownloaded = downloadedCities[city.id];
           const isDownloading = activeDownloads[city.id];
           const progress = downloadProgress[city.id];

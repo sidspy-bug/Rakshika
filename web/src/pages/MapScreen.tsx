@@ -104,8 +104,18 @@ export function MapScreen() {
 
   const handleSelectSuggestion = (place: { name: string; lat: number; lng: number }) => {
     addWaypoint({ name: place.name, lat: place.lat, lng: place.lng });
-    setSearchQuery("");
+    setSearchQuery(place.name); // Keep searched address displayed in search bar
     setSuggestions([]);
+    
+    // Display floating card for selected target location
+    setSelectedPoi({
+      id: `target-${Date.now()}`,
+      name: place.name,
+      type: "police", // Display as safe target
+      lat: place.lat,
+      lng: place.lng,
+      address: place.name,
+    });
   };
 
   const handleClearDestination = () => {
@@ -247,21 +257,30 @@ export function MapScreen() {
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                 'severity' in selectedPoi 
                   ? (selectedPoi.severity === "high" ? "bg-rose-500/20 text-rose-500" : "bg-amber-500/20 text-amber-500")
-                  : (selectedPoi.type === "police" ? "bg-emerald-500/20 text-emerald-500" : "bg-teal-500/20 text-teal-500")
+                  : (selectedPoi.type === "police" ? "bg-emerald-500/20 text-emerald-500" : 
+                     selectedPoi.type === "women_police" ? "bg-rose-500/20 text-rose-500" :
+                     selectedPoi.type === "safe_college" ? "bg-indigo-500/20 text-indigo-500" :
+                     selectedPoi.type === "safe_gathering" ? "bg-green-500/20 text-green-500" :
+                     selectedPoi.type === "volunteer" ? "bg-amber-500/20 text-amber-500" :
+                     "bg-teal-500/20 text-teal-500")
               }`}>
-                {'severity' in selectedPoi ? <AlertTriangle className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+                {'severity' in selectedPoi ? <AlertTriangle className="w-5 h-5" /> : 
+                 (selectedPoi as HelpCenter).type === "volunteer" ? <Sparkles className="w-5 h-5" /> :
+                 (selectedPoi as HelpCenter).type === "safe_gathering" || (selectedPoi as HelpCenter).type === "safe_college" ? <HelpCircle className="w-5 h-5" /> :
+                 <Shield className="w-5 h-5" />
+                }
               </div>
               <div className="flex-1 pr-6">
                 <h4 className="font-bold text-sm leading-tight">{selectedPoi.name || ( 'title' in selectedPoi ? selectedPoi.title : "Help Center" )}</h4>
                 <p className="text-xs text-gray-400 mt-1 capitalize">
-                  {'severity' in selectedPoi ? `Reported Danger (${selectedPoi.severity})` : `${selectedPoi.type} Station`}
+                  {'severity' in selectedPoi ? `Reported Danger (${selectedPoi.severity})` : `${(selectedPoi as HelpCenter).type.replace("_", " ")}`}
                 </p>
                 <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
                   {'description' in selectedPoi ? selectedPoi.description : (selectedPoi.address || "Certified safe zone listed on OSM.")}
                 </p>
-                {!'severity' in selectedPoi && (selectedPoi as HelpCenter).phone && (
-                  <a href={`tel:${(selectedPoi as HelpCenter).phone}`} className="inline-block mt-3 text-xs font-bold text-blue-400 hover:underline">
-                    Call: {(selectedPoi as HelpCenter).phone}
+                {!('severity' in selectedPoi) && (selectedPoi as HelpCenter).phone && (
+                  <a href={`tel:${(selectedPoi as HelpCenter).phone}`} className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded bg-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/30 transition-colors">
+                    <span>📞</span> Call: {(selectedPoi as HelpCenter).phone}
                   </a>
                 )}
                 <div className="mt-3.5 flex gap-2">
@@ -368,8 +387,11 @@ export function MapScreen() {
 
       {/* Offline Maps Modal Overlay */}
       {showOfflineManager && (
-        <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-          <OfflineManager onClose={() => setShowOfflineManager(false)} />
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <OfflineManager 
+            userLocation={userLocation}
+            onClose={() => setShowOfflineManager(false)} 
+          />
         </div>
       )}
     </div>

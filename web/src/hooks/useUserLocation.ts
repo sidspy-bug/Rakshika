@@ -15,6 +15,12 @@ export function useUserLocation() {
   const watchIdRef = useRef<number | null>(null);
   const simulationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const isSimulatingRef = useRef(isSimulating);
+  
+  useEffect(() => {
+    isSimulatingRef.current = isSimulating;
+  }, [isSimulating]);
+
   useEffect(() => {
     if (!navigator.geolocation) {
       setError("Geolocation is not supported by your browser");
@@ -23,7 +29,7 @@ export function useUserLocation() {
     }
 
     const handleSuccess = (position: GeolocationPosition) => {
-      if (!isSimulating) {
+      if (!isSimulatingRef.current) {
         setLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
@@ -58,7 +64,7 @@ export function useUserLocation() {
         clearInterval(simulationTimerRef.current);
       }
     };
-  }, [isSimulating]);
+  }, []); // Empty dependency array, doesn't re-run on isSimulating change
 
   /**
    * Starts a mock trip simulation along a provided route polyline.
