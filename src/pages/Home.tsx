@@ -27,6 +27,7 @@ export function Home() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const sirenIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const sirenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Record state
   const [isRecording, setIsRecording] = useState(false);
@@ -35,6 +36,15 @@ export function Home() {
 
   const toggleSiren = () => {
     if (isSirenPlaying) {
+      if (oscillatorRef.current) {
+        try {
+          oscillatorRef.current.stop();
+          oscillatorRef.current.disconnect();
+        } catch (e) {
+          console.warn("Failed to stop oscillator:", e);
+        }
+        oscillatorRef.current = null;
+      }
       if (audioCtxRef.current) {
         audioCtxRef.current.close();
         audioCtxRef.current = null;
@@ -42,6 +52,10 @@ export function Home() {
       if (sirenIntervalRef.current) {
         clearInterval(sirenIntervalRef.current);
         sirenIntervalRef.current = null;
+      }
+      if (sirenTimeoutRef.current) {
+        clearTimeout(sirenTimeoutRef.current);
+        sirenTimeoutRef.current = null;
       }
       setIsSirenPlaying(false);
     } else {
@@ -56,10 +70,10 @@ export function Home() {
       // Sweep frequency to simulate siren
       sirenIntervalRef.current = setInterval(() => {
         if (!audioCtxRef.current) return;
-        osc.frequency.setTargetAtTime(800, ctx.currentTime, 0.5);
-        setTimeout(() => {
+        osc.frequency.setTargetAtTime(800, ctx.currentTime, 0.15);
+        sirenTimeoutRef.current = setTimeout(() => {
            if (!audioCtxRef.current) return;
-           osc.frequency.setTargetAtTime(400, ctx.currentTime, 0.5);
+           osc.frequency.setTargetAtTime(400, ctx.currentTime, 0.15);
         }, 500);
       }, 1000);
 
@@ -106,14 +120,27 @@ export function Home() {
 
   useEffect(() => {
     return () => {
+      if (oscillatorRef.current) {
+        try {
+          oscillatorRef.current.stop();
+          oscillatorRef.current.disconnect();
+        } catch (e) {
+          // Ignore
+        }
+      }
       if (audioCtxRef.current) {
         audioCtxRef.current.close();
       }
       if (sirenIntervalRef.current) {
         clearInterval(sirenIntervalRef.current);
       }
+      if (sirenTimeoutRef.current) {
+        clearTimeout(sirenTimeoutRef.current);
+      }
       if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop();
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {}
         mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
       }
     };

@@ -10,6 +10,11 @@ export const GIS_MARKER_TYPES = [
   "safe_gathering",
   "safe_college",
   "volunteer",
+  "destination",
+  "pharmacy_24h",
+  "transit_station",
+  "fire_station",
+  "atm_bank",
 ] as const;
 
 export type HelpCenterType =
@@ -18,7 +23,12 @@ export type HelpCenterType =
   | "hospital"
   | "safe_gathering"
   | "safe_college"
-  | "volunteer";
+  | "volunteer"
+  | "destination"
+  | "pharmacy_24h"
+  | "transit_station"
+  | "fire_station"
+  | "atm_bank";
 
 export interface HelpCenter {
   id: string;

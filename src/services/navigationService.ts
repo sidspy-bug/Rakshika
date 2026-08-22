@@ -70,21 +70,36 @@ export async function getRoute(waypoints: Coords[], profile: RouteProfile): Prom
       params: {
         overview: "full",
         geometries: "geojson",
+        alternatives: 3, // Request alternative routes
       },
       timeout: 8000,
     });
 
-    const route = response.data.routes[0];
-    if (route) {
-      const geometry: [number, number][] = route.geometry.coordinates.map(
+    const routes = response.data.routes;
+    if (routes && routes.length > 0) {
+      // Map main route
+      const mainGeometry: [number, number][] = routes[0].geometry.coordinates.map(
         ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
       );
-      return {
-        geometry,
-        distance: route.distance, // meters
-        duration: route.duration, // seconds
+      
+      const mainRouteSummary: RouteSummary = {
+        geometry: mainGeometry,
+        distance: routes[0].distance,
+        duration: routes[0].duration,
         waypoints,
       };
+
+      // Map alternative routes if they exist
+      if (routes.length > 1) {
+        mainRouteSummary.alternativeRoutes = routes.slice(1).map((r: any) => ({
+          geometry: r.geometry.coordinates.map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]),
+          distance: r.distance,
+          duration: r.duration,
+          waypoints,
+        }));
+      }
+
+      return mainRouteSummary;
     }
   } catch (err) {
     console.warn("OSRM routing failed, falling back to straight-line:", err);

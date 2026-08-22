@@ -66,13 +66,16 @@ export function RegisterScreen() {
 
         // Step 3: Seed Emergency Contacts into the new format
         const emergencyContacts = [];
+        const now = new Date().toISOString();
         if (extraProfileData.primaryContactName || extraProfileData.primaryContactPhone) {
           emergencyContacts.push({
             id: Date.now().toString(),
             name: extraProfileData.primaryContactName || "Primary Contact",
             phone: extraProfileData.primaryContactPhone || "",
-            relation: "Family", // Default
-            isSynced: false,
+            relationship: "Parent",
+            source: "manual_entry" as const,
+            createdAt: now,
+            updatedAt: now,
           });
         }
         if (extraProfileData.secondaryContactName || extraProfileData.secondaryContactPhone) {
@@ -80,8 +83,10 @@ export function RegisterScreen() {
             id: (Date.now() + 1).toString(),
             name: extraProfileData.secondaryContactName || "Secondary Contact",
             phone: extraProfileData.secondaryContactPhone || "",
-            relation: "Friend", // Default
-            isSynced: false,
+            relationship: "Friend",
+            source: "manual_entry" as const,
+            createdAt: now,
+            updatedAt: now,
           });
         }
         
@@ -123,6 +128,12 @@ export function RegisterScreen() {
         </div>
 
         <form onSubmit={handleNext} className="w-full bg-white p-6 sm:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 min-h-[400px] flex flex-col">
+          
+          {errorMsg && (
+            <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-xl text-sm font-medium mb-4">
+              {errorMsg}
+            </div>
+          )}
           
           {/* STEP 1: Personal Info & Photo */}
           {step === 1 && (

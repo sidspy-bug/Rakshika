@@ -68,6 +68,29 @@ export function SosScreen() {
     return () => clearTimeout(timer);
   }, [activated, countdown]);
 
+  // Clean up geolocation tracking and media recorder tracks on unmount
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (mediaRecorderRef.current) {
+        try {
+          if (mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+          }
+        } catch (e) {
+          console.warn("Failed to stop media recorder on unmount:", e);
+        }
+        try {
+          mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+        } catch (e) {
+          console.warn("Failed to stop stream tracks on unmount:", e);
+        }
+      }
+    };
+  }, []);
+
   const triggerSosActions = async () => {
     setShowToast(true);
     setTimeout(() => setShowToast(false), 4000);
@@ -242,11 +265,22 @@ export function SosScreen() {
     
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
     
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) {
+        console.warn("Failed to stop media recorder on cancel:", e);
+      }
+      try {
+        mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+      } catch (e) {
+        console.warn("Failed to stop stream tracks on cancel:", e);
+      }
       setIsRecording(false);
     }
     

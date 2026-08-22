@@ -1,5 +1,5 @@
 import type { RouteProfile, Waypoint, RouteSummary } from "../../types/navigation";
-import { Trash2, Footprints, Car, Clock, Compass, AlertTriangle, Sparkles, Navigation } from "lucide-react";
+import { Trash2, Footprints, Car, Clock, Compass, AlertTriangle, Sparkles, Navigation, ShieldCheck } from "lucide-react";
 import { Button } from "../ui/Button";
 import { GlassCard } from "../ui/GlassCard";
 
@@ -113,22 +113,61 @@ export function NavigationPanel({
       {/* Route Metadata */}
       {route && !loading && (
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3 bg-gray-950/60 p-3.5 rounded-xl border border-gray-900">
-            <div className="flex items-center gap-2.5">
+          <div className="grid grid-cols-2 gap-3 bg-gray-950/60 p-3.5 rounded-xl border border-gray-900 relative overflow-hidden">
+            <div className="flex items-center gap-2.5 z-10">
               <Compass className="w-4 h-4 text-emerald-400" />
               <div>
                 <span className="text-[9px] text-gray-500 font-bold uppercase block">Distance</span>
                 <span className="font-bold text-xs text-gray-200">{formatDistance(route.distance)}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 z-10">
               <Clock className="w-4 h-4 text-blue-400" />
               <div>
-                <span className="text-[9px] text-gray-500 font-bold uppercase block">Estimated Duration</span>
+                <span className="text-[9px] text-gray-500 font-bold uppercase block">Est. Duration</span>
                 <span className="font-bold text-xs text-gray-200">{formatDuration(route.duration)}</span>
               </div>
             </div>
           </div>
+
+          {/* Safety Score Card */}
+          <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
+            (route.safetyScore || 0) >= 80 ? "bg-emerald-950/40 border-emerald-900/50" : 
+            (route.safetyScore || 0) >= 50 ? "bg-amber-950/40 border-amber-900/50" : 
+            "bg-rose-950/40 border-rose-900/50"
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                (route.safetyScore || 0) >= 80 ? "bg-emerald-500/20 text-emerald-400" : 
+                (route.safetyScore || 0) >= 50 ? "bg-amber-500/20 text-amber-400" : 
+                "bg-rose-500/20 text-rose-400"
+              }`}>
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-gray-200">
+                  {(route.safetyScore || 0) >= 80 ? "Safe Route Recommended" : 
+                   (route.safetyScore || 0) >= 50 ? "Moderate Safety" : 
+                   "Caution: Unlit Areas"}
+                </h4>
+                <p className="text-[10px] text-gray-400">Based on lighting & safe havens</p>
+              </div>
+            </div>
+            <div className={`text-xl font-black ${
+              (route.safetyScore || 0) >= 80 ? "text-emerald-400" : 
+              (route.safetyScore || 0) >= 50 ? "text-amber-400" : 
+              "text-rose-400"
+            }`}>
+              {route.safetyScore || 60}%
+            </div>
+          </div>
+
+          {/* Alternative Routes Summary */}
+          {route.alternativeRoutes && route.alternativeRoutes.length > 0 && (
+            <div className="text-[10px] text-gray-400 bg-gray-900/40 p-2 rounded-lg border border-gray-800/50 text-center">
+              Found {route.alternativeRoutes.length} alternative route(s). Fastest is {formatDuration(route.alternativeRoutes[0].duration)} ({route.alternativeRoutes[0].safetyScore}% safe).
+            </div>
+          )}
 
           {!isOnline && (
             <div className="bg-amber-950/30 text-amber-500 border border-amber-900/30 text-[10px] font-bold p-2.5 rounded-lg flex items-start gap-2">

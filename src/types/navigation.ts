@@ -16,6 +16,8 @@ export interface RouteSummary {
   distance: number;             // meters
   duration: number;             // seconds
   waypoints: Coords[];          // direct waypoints used
+  safetyScore?: number;         // 0 to 100 percentage
+  alternativeRoutes?: RouteSummary[]; // Optional fallback/fastest alternative
 }
 
 export interface NavigationState {

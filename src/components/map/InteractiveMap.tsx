@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getCachedTileUrl } from "../../services/offlineMapService";
-import type { Coords, HelpCenter, Incident, RouteDetails } from "../../types/gis";
-import type { Waypoint } from "../../types/navigation";
-import { Shield, Flame, Navigation, Crosshair, Loader2 } from "lucide-react";
+import type { Coords, HelpCenter, Incident } from "../../types/gis";
+import type { RouteSummary, Waypoint } from "../../types/navigation";
+import { Shield, Navigation, Loader2, Plus, Minus, Layers, AlertTriangle } from "lucide-react";
 
 interface InteractiveMapProps {
   userLocation: Coords;
@@ -12,13 +12,14 @@ interface InteractiveMapProps {
   waypoints?: Waypoint[];
   helpCenters: HelpCenter[];
   incidents: Incident[];
-  route: RouteDetails | null;
+  route: RouteSummary | null;
   isLoading: boolean;
+  filterCategory?: string;
   onMarkerSelect?: (center: HelpCenter | Incident) => void;
+  onMapClick?: (coords: Coords, address: string) => void;
   onClearDestination?: () => void;
   isSimulating: boolean;
 }
-
 
 export function InteractiveMap({
   userLocation,
@@ -28,21 +29,22 @@ export function InteractiveMap({
   incidents,
   route,
   isLoading,
+  filterCategory = "all",
   onMarkerSelect,
+  onMapClick,
   isSimulating,
 }: InteractiveMapProps) {
-
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  
+
   // Keep track of layers to clear them dynamically
   const userMarkerRef = useRef<L.Marker | null>(null);
   const destinationMarkerRef = useRef<L.Marker | null>(null);
   const waypointsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const centersLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const incidentsLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const routePolylineRef = useRef<L.Polyline | null>(null);
-
+  const dangerHalosLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const routePolylineRef = useRef<L.LayerGroup | null>(null);
 
   const [followUser, setFollowUser] = useState(true);
 
@@ -50,15 +52,13 @@ export function InteractiveMap({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Initialize Leaflet map centered at user location
     const map = L.map(mapContainerRef.current, {
       center: [userLocation.lat, userLocation.lng],
-      zoom: 15,
-      zoomControl: false, // Position custom zoom controls later
+      zoom: 16,
+      zoomControl: false,
       attributionControl: false,
     });
 
-    // Load CartoDB Dark Matter tiles with offline fallback support
     const OfflineTileLayer = L.TileLayer.extend({
       createTile: function (this: L.TileLayer, coords: L.Coords, done: L.DoneCallback) {
         const tile = document.createElement("img");
@@ -73,8 +73,7 @@ export function InteractiveMap({
               if (cachedBlobUrl) {
                 tile.src = cachedBlobUrl;
               } else {
-                // Fallback tile if map coordinate is missing from cache
-                tile.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" style="background:%23111112"><rect width="256" height="256" fill="%23111112"/><text x="50%" y="50%" fill="%23222" font-family="sans-serif" font-size="9" dominant-baseline="middle" text-anchor="middle">Offline Tile (Not Cached)</text></svg>`;
+                tile.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" style="background:%23111112"><rect width="256" height="256" fill="%23111112"/><text x="50%" y="50%" fill="%23222" font-family="sans-serif" font-size="9" dominant-baseline="middle" text-anchor="middle">Offline Tile</text></svg>`;
               }
             })
             .catch((err) => {
@@ -89,30 +88,42 @@ export function InteractiveMap({
       },
     });
 
+    const isDarkMode = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const tileTheme = isDarkMode ? "dark_all" : "dark_all"; // CartoDB dark matter highlights emergency nodes vividly
+
     const baseTileLayer = new (OfflineTileLayer as any)(
-      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      `https://{s}.basemaps.cartocdn.com/${tileTheme}/{z}/{x}/{y}{r}.png`,
       {
         maxZoom: 20,
       }
     );
     baseTileLayer.addTo(map);
 
+    // Map Click Handler for tap-to-navigate
+    map.on("click", async (e: L.LeafletMouseEvent) => {
+      if (!onMapClick) return;
+      const coords = { lat: e.latlng.lat, lng: e.latlng.lng };
 
-    // Add scale indicator at bottom-left
-    L.control.scale({ position: "bottomleft" }).addTo(map);
+      try {
+        const { reverseGeocode } = await import("../../services/gisService");
+        const address = await reverseGeocode(coords);
+        onMapClick(coords, address);
+      } catch (err) {
+        onMapClick(coords, `Location at ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`);
+      }
+    });
 
-    mapRef.current = map;
-
-    // Track user drag to disable auto-centering
     map.on("dragstart", () => {
       setFollowUser(false);
     });
 
     // Create layer groups
+    dangerHalosLayerGroupRef.current = L.layerGroup().addTo(map);
     centersLayerGroupRef.current = L.layerGroup().addTo(map);
     incidentsLayerGroupRef.current = L.layerGroup().addTo(map);
     waypointsLayerGroupRef.current = L.layerGroup().addTo(map);
 
+    mapRef.current = map;
 
     return () => {
       if (mapRef.current) {
@@ -132,18 +143,20 @@ export function InteractiveMap({
       className: "user-location-pulse",
       html: `
         <div class="relative flex items-center justify-center">
-          <div class="absolute w-8 h-8 bg-blue-500/30 rounded-full animate-ping"></div>
-          <div class="w-4 h-4 bg-blue-500 border-2 border-white rounded-full shadow-lg"></div>
+          <div class="absolute w-9 h-9 bg-blue-500/30 rounded-full animate-ping"></div>
+          <div class="w-5 h-5 bg-blue-600 border-2 border-white rounded-full shadow-2xl flex items-center justify-center">
+            <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
+          </div>
         </div>
       `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
     });
 
     if (userMarkerRef.current) {
       userMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
     } else {
-      userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], { icon: pulseIcon }).addTo(map);
+      userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], { icon: pulseIcon, zIndexOffset: 1000 }).addTo(map);
     }
 
     if (followUser && !isSimulating) {
@@ -151,48 +164,7 @@ export function InteractiveMap({
     }
   }, [userLocation, followUser, isSimulating]);
 
-  // 3. Update Destination Marker
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    // Clear old marker
-    if (destinationMarkerRef.current) {
-      destinationMarkerRef.current.remove();
-      destinationMarkerRef.current = null;
-    }
-
-    if (destination) {
-      const destIcon = L.divIcon({
-        className: "destination-marker",
-        html: `
-          <div class="flex flex-col items-center">
-            <div class="w-8 h-8 bg-rose-600 rounded-full border-2 border-white flex items-center justify-center shadow-lg text-white font-bold">
-              🏁
-            </div>
-            <div class="w-1 h-3 bg-rose-600"></div>
-          </div>
-        `,
-        iconSize: [32, 44],
-        iconAnchor: [16, 44],
-      });
-
-      destinationMarkerRef.current = L.marker([destination.lat, destination.lng], { icon: destIcon })
-        .addTo(map)
-        .bindPopup("<b>Destination</b><br/>Safe Walk target.");
-      
-      // Auto adjust map view to fit start + destination
-      if (!isSimulating) {
-        const bounds = L.latLngBounds([
-          [userLocation.lat, userLocation.lng],
-          [destination.lat, destination.lng],
-        ]);
-        map.fitBounds(bounds, { padding: [50, 50], animate: true });
-      }
-    }
-  }, [destination]);
-
-  // 3.5. Update Multi-Destination Waypoint Markers
+  // 3. Update Multi-Destination Waypoint Markers
   useEffect(() => {
     const map = mapRef.current;
     const group = waypointsLayerGroupRef.current;
@@ -203,77 +175,98 @@ export function InteractiveMap({
     if (waypoints && waypoints.length > 0) {
       waypoints.forEach((wp, idx) => {
         const isLast = idx === waypoints.length - 1;
-        const markerColor = isLast ? "bg-rose-600" : "bg-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.4)]";
+        const markerColor = isLast ? "bg-rose-600 shadow-[0_0_12px_rgba(225,29,72,0.6)]" : "bg-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.5)]";
         const markerIcon = isLast ? "🏁" : `${idx + 1}`;
 
         const icon = L.divIcon({
           className: "waypoint-marker",
           html: `
             <div class="flex flex-col items-center">
-              <div class="w-8 h-8 ${markerColor} rounded-full border-2 border-white flex items-center justify-center shadow-lg text-white text-xs font-bold transition-transform hover:scale-110">
+              <div class="w-8 h-8 ${markerColor} rounded-full border-2 border-white flex items-center justify-center shadow-2xl text-white text-xs font-bold transition-transform hover:scale-110">
                 ${markerIcon}
               </div>
-              <div class="w-1 h-3.5 ${isLast ? "bg-rose-600" : "bg-purple-600"}"></div>
+              <div class="w-1 h-3 ${isLast ? "bg-rose-600" : "bg-purple-600"}"></div>
             </div>
           `,
           iconSize: [32, 44],
           iconAnchor: [16, 44],
         });
 
-        const popupContent = `
-          <div class="font-sans text-gray-900 p-1">
-            <h4 class="font-bold text-xs">${isLast ? "🏁 Final Destination" : `📍 Stop ${idx + 1}`}</h4>
-            <p class="text-xs text-gray-500 mt-1">${wp.name}</p>
-          </div>
-        `;
-
         L.marker([wp.lat, wp.lng], { icon })
           .addTo(group)
-          .bindPopup(popupContent);
+          .bindPopup(`
+            <div class="font-sans text-gray-900 p-1">
+              <h4 class="font-bold text-xs">${isLast ? "🏁 Target Destination" : `📍 Stop ${idx + 1}`}</h4>
+              <p class="text-xs text-gray-600 mt-1 font-medium">${wp.name}</p>
+            </div>
+          `);
       });
 
-      // Fit map bounds to encompass user position and all waypoints
       if (!isSimulating) {
         const points = [
           [userLocation.lat, userLocation.lng] as [number, number],
           ...waypoints.map((wp) => [wp.lat, wp.lng] as [number, number]),
         ];
         const bounds = L.latLngBounds(points);
-        map.fitBounds(bounds, { padding: [50, 50], animate: true });
+        map.fitBounds(bounds, { padding: [60, 60], animate: true });
       }
     }
   }, [waypoints, userLocation, isSimulating]);
 
-
-  // 4. Update Route Line
+  // 4. Update Route Lines (Safe Route in Emerald + Alternatives in Dashed Gray)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     if (routePolylineRef.current) {
+      routePolylineRef.current.clearLayers();
       routePolylineRef.current.remove();
       routePolylineRef.current = null;
     }
 
     if (route && route.geometry.length > 0) {
-      // Glow background path + primary path for visual flair
-      routePolylineRef.current = L.polyline(route.geometry, {
-        color: "#4CAF50", // Safe walk green
-        weight: 6,
-        opacity: 0.85,
+      const routesGroup = L.layerGroup().addTo(map);
+      routePolylineRef.current = routesGroup;
+
+      // Render alternative routes first
+      if (route.alternativeRoutes && route.alternativeRoutes.length > 0) {
+        route.alternativeRoutes.forEach((altRoute) => {
+          L.polyline(altRoute.geometry, {
+            color: "#94a3b8",
+            weight: 5,
+            opacity: 0.5,
+            dashArray: "8, 8",
+            lineCap: "round",
+            lineJoin: "round",
+          }).addTo(routesGroup);
+        });
+      }
+
+      // Safe Walk primary path (Glowing green with bold outline)
+      L.polyline(route.geometry, {
+        color: "#059669",
+        weight: 8,
+        opacity: 0.4,
         lineCap: "round",
         lineJoin: "round",
-      }).addTo(map);
+      }).addTo(routesGroup);
 
-      // Adjust map to fit route bounds if not active simulation
+      L.polyline(route.geometry, {
+        color: "#10b981",
+        weight: 5,
+        opacity: 1.0,
+        lineCap: "round",
+        lineJoin: "round",
+      }).addTo(routesGroup);
+
       if (!isSimulating) {
-        const bounds = routePolylineRef.current.getBounds();
-        map.fitBounds(bounds, { padding: [55, 55], animate: true });
+        const bounds = L.latLngBounds(route.geometry);
+        map.fitBounds(bounds, { padding: [70, 70], animate: true });
       }
     }
   }, [route, isSimulating]);
 
-  // 5. Update Nearby Help Centers Markers
+  // 5. Update Help Centers & Volunteers Markers
   useEffect(() => {
     const map = mapRef.current;
     const group = centersLayerGroupRef.current;
@@ -281,120 +274,148 @@ export function InteractiveMap({
 
     group.clearLayers();
 
-    helpCenters.forEach((center) => {
-      let iconColor = "bg-teal-600";
+    const filtered = helpCenters.filter((center) => {
+      if (filterCategory === "all") return true;
+      if (filterCategory === "police") return center.type === "police" || center.type === "women_police";
+      if (filterCategory === "hospital") return center.type === "hospital";
+      if (filterCategory === "pharmacy_24h") return center.type === "pharmacy_24h";
+      if (filterCategory === "transit_station") return center.type === "transit_station";
+      if (filterCategory === "volunteer") return center.type === "volunteer";
+      if (filterCategory === "safe_haven") return center.type !== "volunteer";
+      return true;
+    });
+
+    filtered.forEach((center) => {
+      let iconColor = "bg-teal-600 shadow-[0_0_10px_rgba(13,148,136,0.5)]";
       let iconEmoji = "🏥";
+      let labelBadge = "Help Center";
 
       switch (center.type) {
         case "police":
-          iconColor = "bg-emerald-600";
+          iconColor = "bg-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.6)]";
           iconEmoji = "🛡️";
+          labelBadge = "Police Post";
           break;
         case "women_police":
-          iconColor = "bg-rose-500";
+          iconColor = "bg-rose-500 shadow-[0_0_14px_rgba(244,63,94,0.7)]";
           iconEmoji = "♀️👮‍♀️";
+          labelBadge = "Mahila Thana";
+          break;
+        case "hospital":
+          iconColor = "bg-rose-600 shadow-[0_0_12px_rgba(225,29,72,0.6)]";
+          iconEmoji = "🏥";
+          labelBadge = "24/7 Hospital";
+          break;
+        case "pharmacy_24h":
+          iconColor = "bg-emerald-600 shadow-[0_0_12px_rgba(16,185,129,0.6)]";
+          iconEmoji = "💊";
+          labelBadge = "24/7 Medical";
+          break;
+        case "transit_station":
+          iconColor = "bg-cyan-600 shadow-[0_0_12px_rgba(6,182,212,0.6)]";
+          iconEmoji = "🚆";
+          labelBadge = "Transit Hub";
+          break;
+        case "atm_bank":
+          iconColor = "bg-emerald-700";
+          iconEmoji = "🏧";
+          labelBadge = "Guarded ATM";
           break;
         case "safe_college":
           iconColor = "bg-indigo-600";
           iconEmoji = "🎓";
-          break;
-        case "safe_gathering":
-          iconColor = "bg-green-600";
-          iconEmoji = "🌳";
+          labelBadge = "Campus Safe Zone";
           break;
         case "volunteer":
-          iconColor = "bg-amber-500 animate-pulse";
+          iconColor = "bg-amber-500 shadow-[0_0_14px_rgba(245,158,11,0.7)]";
           iconEmoji = "🙋‍♀️";
+          labelBadge = "Active Volunteer (30s Live)";
           break;
-        case "hospital":
+        case "destination":
+          iconColor = "bg-purple-600 shadow-[0_0_12px_rgba(147,51,234,0.6)]";
+          iconEmoji = "📍";
+          labelBadge = "Target";
+          break;
         default:
           iconColor = "bg-teal-600";
-          iconEmoji = "🏥";
+          iconEmoji = "🛡️";
+          labelBadge = "Safe Haven";
           break;
       }
 
       const icon = L.divIcon({
         className: "help-center-marker",
         html: `
-          <div class="flex flex-col items-center cursor-pointer group">
-            <div class="w-8 h-8 ${iconColor.replace(" animate-pulse", "")} rounded-full border-2 border-white flex items-center justify-center shadow-lg transition-transform duration-200 hover:scale-125 ${iconColor.includes("pulse") ? "animate-pulse" : ""}">
-              <span class="text-xs text-white">${iconEmoji}</span>
+          <div class="flex flex-col items-center cursor-pointer group transition-transform duration-200 hover:scale-125">
+            <div class="w-8 h-8 ${iconColor} rounded-full border-2 border-white flex items-center justify-center text-xs">
+              ${iconEmoji}
             </div>
-            <div class="w-1 h-2 ${iconColor.replace(" animate-pulse", "")}"></div>
+            <div class="w-1 h-2 ${iconColor.split(" ")[0]}"></div>
           </div>
         `,
         iconSize: [32, 40],
         iconAnchor: [16, 40],
       });
 
-      const phoneText = center.phone ? `<br/><b>Phone:</b> <a href="tel:${center.phone}" class="text-blue-400 font-bold">${center.phone}</a>` : "";
-      const addressText = center.address ? `<br/><span class="text-xs text-gray-400">${center.address}</span>` : "";
-      
-      const popupContent = `
-        <div class="font-sans text-gray-900 p-1">
-          <h4 class="font-bold text-sm flex items-center gap-1">
-            ${iconEmoji} ${center.name}
-          </h4>
-          <p class="text-xs text-gray-500 mt-1 capitalize">${center.type.replace("_", " ")}</p>
-          ${addressText}
-          ${phoneText}
-        </div>
-      `;
-
       L.marker([center.lat, center.lng], { icon })
         .addTo(group)
-        .bindPopup(popupContent)
         .on("click", () => {
           if (onMarkerSelect) onMarkerSelect(center);
         });
     });
-  }, [helpCenters, onMarkerSelect]);
+  }, [helpCenters, filterCategory, onMarkerSelect]);
 
-  // 6. Update Danger Zone / Incident Markers
+  // 6. Update Danger Zone Halos & Incident Markers
   useEffect(() => {
     const map = mapRef.current;
     const group = incidentsLayerGroupRef.current;
-    if (!map || !group) return;
+    const halosGroup = dangerHalosLayerGroupRef.current;
+    if (!map || !group || !halosGroup) return;
 
     group.clearLayers();
+    halosGroup.clearLayers();
+
+    if (filterCategory !== "all" && filterCategory !== "incidents") {
+      return; // Filtered out
+    }
 
     incidents.forEach((incident) => {
-      const color = incident.severity === "high" ? "bg-rose-600 animate-pulse" : "bg-amber-600";
+      const isHigh = incident.severity === "high";
+      const color = isHigh ? "bg-rose-600 shadow-[0_0_14px_rgba(225,29,72,0.8)]" : "bg-amber-600 shadow-[0_0_10px_rgba(217,119,6,0.6)]";
+      const circleColor = isHigh ? "#e11d48" : "#d97706";
+
+      // Draw danger zone radius halo
+      L.circle([incident.lat, incident.lng], {
+        radius: isHigh ? 180 : 120,
+        color: circleColor,
+        fillColor: circleColor,
+        fillOpacity: 0.12,
+        weight: 1.5,
+        dashArray: "4, 4",
+      }).addTo(halosGroup);
+
       const icon = L.divIcon({
         className: "incident-marker",
         html: `
-          <div class="flex flex-col items-center cursor-pointer">
-            <div class="w-8 h-8 ${color} rounded-full border-2 border-white flex items-center justify-center shadow-lg">
-              <span class="text-xs">⚠️</span>
+          <div class="flex flex-col items-center cursor-pointer group transition-transform duration-200 hover:scale-125">
+            <div class="w-8 h-8 ${color} rounded-full border-2 border-white flex items-center justify-center text-xs animate-pulse">
+              ⚠️
             </div>
-            <div class="w-1 h-2 ${incident.severity === "high" ? "bg-rose-600" : "bg-amber-600"}"></div>
+            <div class="w-1 h-2 ${isHigh ? "bg-rose-600" : "bg-amber-600"}"></div>
           </div>
         `,
         iconSize: [32, 40],
         iconAnchor: [16, 40],
       });
 
-      const popupContent = `
-        <div class="font-sans text-gray-900 max-w-[200px]">
-          <h4 class="font-bold text-sm text-red-600 flex items-center gap-1">⚠️ Danger Area</h4>
-          <p class="font-semibold text-xs mt-1 text-gray-800">${incident.title}</p>
-          <p class="text-[11px] text-gray-500 mt-1">${incident.description}</p>
-          <span class="inline-block mt-2 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase text-white bg-red-500">
-            Severity: ${incident.severity}
-          </span>
-        </div>
-      `;
-
       L.marker([incident.lat, incident.lng], { icon })
         .addTo(group)
-        .bindPopup(popupContent)
         .on("click", () => {
           if (onMarkerSelect) onMarkerSelect(incident);
         });
     });
-  }, [incidents, onMarkerSelect]);
+  }, [incidents, filterCategory, onMarkerSelect]);
 
-  // Map utilities click handlers
   const handleRecenter = () => {
     const map = mapRef.current;
     if (map) {
@@ -403,56 +424,53 @@ export function InteractiveMap({
     }
   };
 
-  const handleZoomIn = () => {
-    mapRef.current?.zoomIn();
-  };
-
-  const handleZoomOut = () => {
-    mapRef.current?.zoomOut();
-  };
-
   return (
-    <div className="relative w-full h-full bg-[#1C1C1E] overflow-hidden flex-1">
+    <div className="relative w-full h-full bg-[#111112] overflow-hidden flex-1 select-none">
       {/* Real Map Container */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-      {/* Floating Action Controls */}
-      <div className="absolute right-4 bottom-24 z-10 flex flex-col gap-2">
-        {/* Recenter Button */}
+      {/* Floating Action Controls - Perfectly Positioned on Right Side (Unobstructed) */}
+      <div className="absolute right-4 top-36 z-30 flex flex-col gap-2.5">
+        {/* Recenter Location Button */}
         <button
           onClick={handleRecenter}
-          className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg border border-gray-800 backdrop-blur-md transition-colors ${
-            followUser ? "bg-blue-600 text-white border-blue-500" : "bg-black/75 text-gray-300 hover:bg-black/90"
+          className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-2xl border backdrop-blur-xl transition-all active:scale-95 ${
+            followUser
+              ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/40"
+              : "bg-black/80 text-gray-300 border-gray-800 hover:bg-black/95 hover:text-white"
           }`}
-          title="Recenter Location"
+          title="Recenter GPS Position"
         >
-          <Navigation className="w-5 h-5 fill-current" />
+          <Navigation className={`w-5 h-5 fill-current ${followUser ? "animate-pulse" : ""}`} />
         </button>
 
         {/* Zoom Controls */}
-        <div className="flex flex-col rounded-xl overflow-hidden shadow-lg border border-gray-800 bg-black/75 text-gray-300 divide-y divide-gray-800 backdrop-blur-md">
+        <div className="flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-gray-800 bg-black/80 text-gray-300 divide-y divide-gray-800/80 backdrop-blur-xl">
           <button
-            onClick={handleZoomIn}
-            className="w-12 h-12 flex items-center justify-center hover:bg-black/90 text-lg font-bold"
+            onClick={() => mapRef.current?.zoomIn()}
+            className="w-11 h-10 flex items-center justify-center hover:bg-white/10 text-white font-bold transition-colors active:bg-white/20"
+            title="Zoom In"
           >
-            +
+            <Plus className="w-4 h-4" />
           </button>
           <button
-            onClick={handleZoomOut}
-            className="w-12 h-12 flex items-center justify-center hover:bg-black/90 text-lg font-bold"
+            onClick={() => mapRef.current?.zoomOut()}
+            className="w-11 h-10 flex items-center justify-center hover:bg-white/10 text-white font-bold transition-colors active:bg-white/20"
+            title="Zoom Out"
           >
-            −
+            <Minus className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 bg-black/85 text-white px-4 py-2 rounded-full border border-gray-800 text-xs font-semibold flex items-center gap-2 shadow-2xl backdrop-blur-md">
-          <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
-          <span>Recalculating safe route...</span>
+        <div className="absolute top-28 left-1/2 -translate-x-1/2 z-30 bg-black/90 text-white px-4 py-2 rounded-full border border-emerald-500/30 text-xs font-semibold flex items-center gap-2.5 shadow-2xl backdrop-blur-md animate-in fade-in duration-200">
+          <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+          <span>Syncing safe paths & helpers...</span>
         </div>
       )}
     </div>
   );
 }
+

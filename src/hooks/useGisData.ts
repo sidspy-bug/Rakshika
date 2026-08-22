@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Coords, HelpCenter, RouteDetails, Incident } from "../types/gis";
-import { getNearbyHelpCenters, getRoute, getReportedIncidents } from "../services/gisService";
+import { getNearbyHelpCenters, getRoute, getReportedIncidents, getNearbyVolunteers } from "../services/gisService";
+import { calculateDistance } from "../utils/geo";
 
 interface UseGisDataProps {
   userLocation: Coords;
@@ -15,27 +16,54 @@ export function useGisData({ userLocation, destination }: UseGisDataProps) {
   const [loadingCenters, setLoadingCenters] = useState<boolean>(false);
   const [loadingRoute, setLoadingRoute] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchLocation, setLastFetchLocation] = useState<Coords | null>(null);
 
-  // Fetch help centers and incidents near the user location
+  const userLocationRef = useRef(userLocation);
+  userLocationRef.current = userLocation;
+
+  // 1. Fetch public infrastructure POIs & realistic incidents
   const fetchNearbyData = useCallback(async (coords: Coords) => {
     setLoadingCenters(true);
     setError(null);
     try {
       const [centers, localIncidents] = await Promise.all([
         getNearbyHelpCenters(coords),
-        Promise.resolve(getReportedIncidents(coords)),
+        getReportedIncidents(coords),
       ]);
-      setHelpCenters(centers);
+      
+      // Get stable volunteers
+      const volunteers = getNearbyVolunteers(coords, false);
+      
+      setHelpCenters([...centers, ...volunteers]);
       setIncidents(localIncidents);
     } catch (err: any) {
-      console.error("Failed to fetch GIS POIs:", err);
+      console.warn("Failed to fetch GIS POIs:", err);
       setError("Failed to load safety centers.");
+      // Fallback
+      const volunteers = getNearbyVolunteers(coords, false);
+      setHelpCenters(volunteers);
     } finally {
       setLoadingCenters(false);
     }
   }, []);
 
-  // Recalculate route when start or end coordinates change
+  // 2. 30-Second Volunteer Refresh Timer (Gently updates volunteer beacons without re-querying Overpass)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (userLocationRef.current) {
+        const updatedVolunteers = getNearbyVolunteers(userLocationRef.current, true);
+        setHelpCenters((prevCenters) => {
+          // Keep static help centers (police, hospitals, etc.) and swap only volunteers
+          const nonVolunteers = prevCenters.filter((c) => c.type !== "volunteer");
+          return [...nonVolunteers, ...updatedVolunteers];
+        });
+      }
+    }, 30000); // Exactly 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 3. Recalculate route when start or end coordinates change
   const fetchRouteDetails = useCallback(async (start: Coords, end: Coords) => {
     setLoadingRoute(true);
     try {
@@ -49,14 +77,23 @@ export function useGisData({ userLocation, destination }: UseGisDataProps) {
     }
   }, []);
 
-  // Update POIs when user location is available
+  // 4. Update POIs when user location is available and moved significantly (> 500 meters)
   useEffect(() => {
     if (userLocation) {
-      fetchNearbyData(userLocation);
+      if (!lastFetchLocation) {
+        fetchNearbyData(userLocation);
+        setLastFetchLocation(userLocation);
+      } else {
+        const distance = calculateDistance(userLocation, lastFetchLocation);
+        if (distance > 500) {
+          fetchNearbyData(userLocation);
+          setLastFetchLocation(userLocation);
+        }
+      }
     }
-  }, [userLocation, fetchNearbyData]);
+  }, [userLocation, lastFetchLocation, fetchNearbyData]);
 
-  // Update route path when destination is set or updated
+  // 5. Update route path when destination is set or updated
   useEffect(() => {
     if (userLocation && destination) {
       fetchRouteDetails(userLocation, destination);
@@ -83,3 +120,4 @@ export function useGisData({ userLocation, destination }: UseGisDataProps) {
     refreshHelpCenters,
   };
 }
+

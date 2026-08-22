@@ -110,6 +110,20 @@ export const LandingPage = () => {
             <span className="relative z-10 text-gradient">Login</span>
           </button>
         </motion.div>
+        
+        {/* Volunteer Portal Link */}
+        <motion.div
+          className="mt-8 text-center"
+          variants={itemVariants}
+        >
+          <button
+            onClick={() => navigate('/role-select')}
+            className="text-gray-500 font-bold hover:text-pink-600 transition-colors flex items-center justify-center gap-2 mx-auto"
+          >
+            <Shield className="w-4 h-4" />
+            Join as a Volunteer / Responder
+          </button>
+        </motion.div>
 
       </motion.div>
     </div>
