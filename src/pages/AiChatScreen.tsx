@@ -1,25 +1,26 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Shield, Loader2, Sparkles } from "lucide-react";
+import { Send, Shield, Loader2, Sparkles, MapPin, Phone, AlertTriangle, PhoneCall, Navigation } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useUserLocation } from "../hooks/useUserLocation";
 import { useGisData } from "../hooks/useGisData";
 import { reverseGeocode } from "../services/gisService";
-import axios from "axios";
-
-type Message = {
-  id: string;
-  role: "user" | "ai";
-  content: string;
-};
+import { queryAiGuardian, type AiMessage, type MessageAction } from "../services/aiGuardianService";
 
 export function AiChatScreen() {
+  const navigate = useNavigate();
   const { location: userLocation } = useUserLocation();
   const { helpCenters, incidents } = useGisData({ userLocation, destination: null });
-  
-  const [messages, setMessages] = useState<Message[]>([
+
+  const [messages, setMessages] = useState<AiMessage[]>([
     {
       id: "1",
       role: "ai",
-      content: "Hello sister. I am Rakshika, your personal safety companion. I am actively monitoring your location to keep you safe. How can I help you right now?",
+      content: "Hello sister. I am Rakshika, your personal safety guardian. I am actively monitoring your location grid to keep you protected 24/7. Are you feeling safe right now or do you need emergency guidance?",
+      actions: [
+        { type: "sos", label: "🚨 Press SOS" },
+        { type: "call_police", label: "📞 Call 112", phone: "112" },
+        { type: "call_women_helpline", label: "📞 1091 Women Cell", phone: "1091" },
+      ],
     },
   ]);
   const [input, setInput] = useState("");
@@ -33,7 +34,7 @@ export function AiChatScreen() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isLoading]);
 
   // Reverse geocode user location on load/change
   useEffect(() => {
@@ -44,199 +45,170 @@ export function AiChatScreen() {
     }
   }, [userLocation]);
 
-  const handleSend = async () => {
-    const userTextInput = input.trim();
+  const handleSend = async (overrideText?: string) => {
+    const userTextInput = (overrideText || input).trim();
     if (!userTextInput) return;
 
-    const userMessage: Message = {
+    const userMessage: AiMessage = {
       id: Date.now().toString(),
       role: "user",
       content: userTextInput,
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
+    if (!overrideText) setInput("");
     setIsLoading(true);
 
-    const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
-
-    if (!apiKey || apiKey === "mock-key") {
-      console.warn("VITE_OPENROUTER_API_KEY not found or is mock. Falling back to local simulator.");
-      setTimeout(() => {
-        let reply = `I am tracking your location near ${currentAddress}. If you feel unsafe, please press the red SOS button immediately or head to the nearest lit area.`;
-        const lowerInput = userTextInput.toLowerCase();
-        
-        if (lowerInput.includes("safe route") || lowerInput.includes("home")) {
-          reply = `📍 **Location Check:** You are at ${currentAddress}.\n\nI recommend using the **Safe Walk Mode** on the Map screen. It will steer you clear of unlit streets and guide you through well-lit safe zones.`;
-        } else if (lowerInput.includes("emergency") || lowerInput.includes("contact")) {
-          reply = `🚨 **Emergency Mode:** I have your coordinates at ${currentAddress}. Your emergency contacts will receive your live tracking link instantly if you trigger the **SOS button**.`;
-        } else if (lowerInput.includes("follow") || lowerInput.includes("stalk") || lowerInput.includes("scared")) {
-          reply = `⚠️ **STAY CALM & ACT FAST:**\n1. Do NOT head straight home.\n2. Walk immediately into a brightly lit public place (shop, cafe, hospital).\n3. Use the **Fake Call** button on the home screen or press **SOS** if threatened.`;
-        }
-
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "ai",
-          content: reply,
-        };
-
-        setMessages((prev) => [...prev, aiMessage]);
-        setIsLoading(false);
-      }, 1200);
-      return;
-    }
-
     try {
-      // Build detailed location & surroundings context
-      const nearestSafeSpots = helpCenters
-        .slice(0, 5)
-        .map((c) => `- **${c.name}** (${c.type.replace("_", " ")}) ~${Math.round(c.distance || 0)}m away ${c.phone ? `[Call: ${c.phone}]` : ""}`)
-        .join("\n");
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+      const response = await queryAiGuardian(
+        userTextInput,
+        history,
+        currentAddress,
+        userLocation,
+        helpCenters,
+        incidents
+      );
 
-      const localDangerZones = incidents
-        .slice(0, 3)
-        .map((i) => `- **${i.title}**: ${i.description}`)
-        .join("\n");
-
-      const systemPrompt = `You are Rakshika, a real-time personal safety companion and protective guardian for women. Your highest priority is the user's physical safety and peace of mind.
-
-MANDATORY GEOLOCATION PROTOCOL:
-1. ALWAYS anchor your response with her current location first. Acknowledge her area (${currentAddress}) upfront so she knows you have her location locked in.
-2. Directly recommend the SPECIFIC safe havens, police stations, or volunteers listed below with their distances when giving directions or help.
-3. Warn her about any unlit streets or danger alerts in her immediate vicinity.
-
-LIVE GEOLOCATION DATA:
-- Address: ${currentAddress}
-- GPS Coordinates: ${userLocation ? `${userLocation.lat}, ${userLocation.lng}` : "Acquiring lock..."}
-- Verified Nearby Safe Havens & Police Stations:
-${nearestSafeSpots || "Searching live OpenStreetMap database..."}
-- Local Safety Alerts / Unlit Streets:
-${localDangerZones || "No unlit street warnings reported."}
-
-RESPONSE STYLES & TONALITY:
-- Be protective, calm, sharp, empathetic, and scannable. Use **bold formatting** for key locations, distances, and actions.
-- Emergency/Threat (being followed, feeling scared, dark street): 
-  - Immediately advise pressing the RED SOS button or calling 112 / emergency services.
-  - Give 2 concise physical actions (e.g. "Enter the nearest open store", "Do not isolate yourself").
-  - Name the exact closest safe spot from the list above.
-- Non-Emergency / General Advice:
-  - Provide practical self-defense or safe navigation steps grounded in her current location.
-  - End with a caring, protective follow-up question (e.g. "Are you walking alone right now? Would you like me to highlight the path to the nearest police station?").`;
-
-      const chatHistory = messages.map((msg) => ({
-        role: msg.role === "ai" ? "assistant" : "user",
-        content: msg.content,
-      }));
-
-      const payload = {
-        model: "google/gemma-4-31b-it:free",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...chatHistory,
-          { role: "user", content: userTextInput },
-        ],
-      };
-
-      const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", payload, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": window.location.origin,
-          "X-Title": "Rakshika Safety Web",
-        },
-      });
-
-      const aiReply = response.data?.choices?.[0]?.message?.content || "I'm having trouble analyzing the safety risk right now. If you are in danger, please trigger SOS.";
-
-      const aiMessage: Message = {
+      const aiMessage: AiMessage = {
         id: (Date.now() + 1).toString(),
         role: "ai",
-        content: aiReply,
+        content: response.content,
+        actions: response.actions,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
     } catch (err) {
-      console.error("OpenRouter request failed:", err);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "ai",
-        content: "I couldn't reach the AI server. Please make sure your network is active, or trigger SOS if you are in immediate danger.",
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      console.error("AI Guardian error:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleActionClick = (action: MessageAction) => {
+    if (action.type === "sos") {
+      navigate("/sos");
+    } else if (action.type === "fake_call") {
+      navigate("/fake-call");
+    } else if (action.type === "route_police") {
+      navigate("/map");
+    } else if (action.phone) {
+      window.location.href = `tel:${action.phone}`;
+    }
+  };
+
   const quickReplies = [
-    "Safe route home",
-    "Emergency contacts",
-    "Self-defense tips",
+    { label: "🚨 Being followed", text: "I think someone is following me on foot. What should I do right now?" },
+    { label: "🚗 Suspicious Cab", text: "I am in an auto/cab and the driver is taking a wrong dark route." },
+    { label: "🌑 Dark Street", text: "I am stranded in a dark deserted street. Give me safe path advice." },
+    { label: "🏥 Medical Help", text: "I need immediate medical emergency assistance." },
+    { label: "👮 Nearest Police", text: "Where is the nearest police station or Mahila Thana?" },
   ];
 
   return (
-    <div className="flex flex-col h-full bg-white relative">
-      {/* Header */}
-      <header className="flex items-center gap-3 p-4 border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-          <Shield className="w-5 h-5 text-[#D32F2F]" />
-        </div>
-        <div>
-          <h2 className="font-bold text-gray-900">Rakshika AI</h2>
-          <p className="text-xs text-green-600 font-medium flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            Online
-          </p>
+    <div className="flex flex-col h-full bg-[#0d0d0e] relative text-white font-sans overflow-hidden">
+      {/* Top Header */}
+      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-black/90 backdrop-blur-xl sticky top-0 z-20 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-2xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+            <Shield className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-sm text-white">Rakshika AI Guardian</h2>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold border border-emerald-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                ACTIVE
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-400 flex items-center gap-1 line-clamp-1 mt-0.5">
+              <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+              <span>{currentAddress}</span>
+            </p>
+          </div>
         </div>
       </header>
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-36">
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in fade-in duration-200`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-5 py-3 ${
+              className={`max-w-[88%] rounded-2xl px-4 py-3 ${
                 msg.role === "user"
-                  ? "bg-[#D32F2F] text-white rounded-tr-sm"
-                  : "bg-gray-100 text-gray-900 rounded-tl-sm border border-gray-200"
+                  ? "bg-gradient-to-r from-rose-600 to-red-700 text-white rounded-tr-sm shadow-lg shadow-rose-950/30"
+                  : "bg-gray-900/90 text-gray-100 rounded-tl-sm border border-gray-800 backdrop-blur-md shadow-2xl"
               }`}
             >
-              <p className="text-[15px] leading-relaxed">{msg.content}</p>
+              <div className="text-xs leading-relaxed whitespace-pre-wrap font-medium">
+                {msg.content}
+              </div>
+
+              {/* Interactive Action Shortcuts for Emergency Situations */}
+              {msg.actions && msg.actions.length > 0 && (
+                <div className="mt-3.5 pt-3 border-t border-gray-800/80 flex flex-wrap items-center gap-2">
+                  {msg.actions.map((act, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleActionClick(act)}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
+                        act.type === "sos"
+                          ? "bg-rose-600 hover:bg-rose-500 text-white border border-rose-400/50 animate-pulse"
+                          : act.type === "fake_call"
+                          ? "bg-purple-600 hover:bg-purple-500 text-white border border-purple-400/40"
+                          : "bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-gray-700"
+                      }`}
+                    >
+                      {act.type === "sos" && <AlertTriangle className="w-3.5 h-3.5" />}
+                      {act.type === "fake_call" && <PhoneCall className="w-3.5 h-3.5" />}
+                      {act.type === "call_police" && <Phone className="w-3.5 h-3.5" />}
+                      {act.type === "route_police" && <Navigation className="w-3.5 h-3.5" />}
+                      <span>{act.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}
+
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 text-gray-500 rounded-2xl rounded-tl-sm px-5 py-3 border border-gray-200 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm font-medium">Analyzing risk...</span>
+            <div className="bg-gray-900/90 text-gray-300 rounded-2xl rounded-tl-sm px-4 py-3 border border-gray-800 flex items-center gap-2.5 backdrop-blur-md shadow-xl">
+              <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+              <span className="text-xs font-semibold tracking-wide text-rose-300">
+                Analyzing Live GPS Grid & Safety Protocol...
+              </span>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent pt-6 pb-4 px-4">
-        {/* Quick Replies */}
-        <div className="flex gap-2 overflow-x-auto pb-3 mb-1 no-scrollbar">
-          {quickReplies.map((reply) => (
+      {/* Input & Quick Reply Controls */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/95 to-transparent pt-6 pb-4 px-3.5 z-20">
+        {/* Quick Pinch Scenario Chips */}
+        <div className="flex gap-2 overflow-x-auto pb-2.5 mb-1 no-scrollbar">
+          {quickReplies.map((qr, idx) => (
             <button
-              key={reply}
-              onClick={() => setInput(reply)}
-              className="whitespace-nowrap px-4 py-2 rounded-full bg-red-50 text-[#D32F2F] text-xs font-semibold border border-red-100 hover:bg-red-100 transition-colors flex items-center gap-1"
+              key={idx}
+              onClick={() => handleSend(qr.text)}
+              disabled={isLoading}
+              className="whitespace-nowrap px-3 py-1.5 rounded-xl bg-gray-900/90 text-gray-200 text-[11px] font-bold border border-gray-800 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-800/60 transition-all flex items-center gap-1.5 shrink-0 shadow-md backdrop-blur-md"
             >
-              <Sparkles className="w-3 h-3" />
-              {reply}
+              <Sparkles className="w-3 h-3 text-rose-400" />
+              <span>{qr.label}</span>
             </button>
           ))}
         </div>
 
-        <div className="flex items-end gap-2 bg-white rounded-3xl border border-gray-200 shadow-sm p-1 pr-2 focus-within:ring-2 focus-within:ring-red-100 transition-shadow">
-          <textarea
+        {/* Input Bar */}
+        <div className="flex items-center gap-2 bg-gray-900/90 rounded-2xl border border-gray-800 shadow-2xl p-1.5 pl-3 focus-within:border-rose-500/60 transition-all backdrop-blur-xl">
+          <input
+            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -245,16 +217,15 @@ RESPONSE STYLES & TONALITY:
                 handleSend();
               }
             }}
-            placeholder="Ask for safety advice..."
-            className="flex-1 max-h-32 bg-transparent border-none focus:ring-0 resize-none py-3 px-4 text-[15px] text-gray-900 placeholder:text-gray-400 min-h-[48px]"
-            rows={1}
+            placeholder="Describe your situation or emergency..."
+            className="flex-1 bg-transparent border-none outline-none text-xs font-medium text-white placeholder-gray-500 py-2"
           />
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || isLoading}
-            className="w-10 h-10 mb-1 rounded-full bg-[#D32F2F] text-white flex items-center justify-center disabled:opacity-50 disabled:bg-gray-300 transition-colors shrink-0"
+            className="w-8 h-8 rounded-xl bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center disabled:opacity-40 disabled:bg-gray-800 transition-all shrink-0 shadow-md active:scale-95"
           >
-            <Send className="w-5 h-5 ml-0.5" />
+            <Send className="w-4 h-4" />
           </button>
         </div>
       </div>
