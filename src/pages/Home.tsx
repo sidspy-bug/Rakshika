@@ -213,8 +213,33 @@ export function Home() {
         </GlassCard>
       </section>
       
+      {/* Forensic Evidence Vault Card */}
+      <section className="mt-1">
+        <GlassCard
+          className="p-4 bg-gradient-to-r from-red-950/40 to-black/60 border border-red-500/30 hover:border-red-500/60 transition-all cursor-pointer flex items-center justify-between"
+          onClick={() => navigate("/history")}
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-gray-900 flex items-center gap-2">
+                Evidence Vault & Incident Dossier
+              </h4>
+              <p className="text-xs text-gray-500 mt-0.5">
+                View recorded videos, SHA-256 manifests & export police certificates
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100 shrink-0">
+            Open Vault →
+          </span>
+        </GlassCard>
+      </section>
+
       {/* Current Status */}
-      <section className="mt-4">
+      <section className="mt-1">
         <div className={`rounded-2xl p-5 text-white flex items-center justify-between shadow-lg transition-colors ${guardianMode ? 'bg-gradient-to-r from-emerald-600 to-emerald-800' : 'bg-gradient-to-r from-gray-900 to-gray-800'}`}>
           <div>
             <h3 className="font-bold text-lg">Guardian Mode</h3>

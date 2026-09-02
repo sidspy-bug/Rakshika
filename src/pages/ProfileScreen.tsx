@@ -124,7 +124,9 @@ export function ProfileScreen() {
             <div
               className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
               onClick={() => {
-                if (item.expandable) {
+                if (item.title === "Emergency History") {
+                  navigate("/history");
+                } else if (item.expandable) {
                   toggleSection(item.title);
                 }
               }}

@@ -55,7 +55,13 @@
 - **Persistent Disk Audit Logging:** Records every millisecond event during an SOS trigger directly to device storage at `Documents/Rakshika/logs/sos_<id>_diagnostic.json` and `Documents/Rakshika/logs/rakshika_blackbox.log`.
 - **Airplane Mode / Radio-Off Handling:** When cellular modem is offline or in airplane mode, logs failure reason (`Radio Off / No Signal`), queues emergency SMS for auto-redelivery upon reconnection, and preserves local 3-second SHA-256 WebM evidence chunks to device Documents folder.
 - **Clean ASCII SMS Standard:** Replaced emojis with GSM 7-bit standard ASCII characters (`EMERGENCY SOS: I need help immediately. Live Location: https://maps.google.com/?q=lat,lng [ID: xxx]`) to prevent carrier 70-character UCS-2 encoding truncation.
-- **In-App Blackbox Terminal Viewer:** On-screen interactive diagnostic modal on `SosScreen.tsx` with category filters (SMS, GPS, BLE, Evidence, Errors), 1-click clipboard copy, and file export.
+
+### 2.7 Forensic Evidence Vault & Police Dossier Engine (`evidencePlaybackService.ts`, `EvidenceVaultScreen.tsx`)
+- **Native Video Evidence Player:** Decodes and streams recorded 3-second WebM chunks directly from Android's `Documents/Rakshika/evidence/<incidentId>/` with sequential auto-playback and chunk navigation.
+- **SHA-256 Tamper-Evident Verification:** Computes live cryptographic digest for each chunk to verify matching integrity with the incident manifest.
+- **Shared Contacts & Dispatch Receipts Dossier:** Presents a clear, human-understandable audit trail of all recipients (phone numbers like `+918292630529`, cellular SMS delivery status, 112 ERSS police telemetry status, and 181 Women Helpline broadcast receipts).
+- **Interactive GPS Route Breadcrumbs:** Visualizes all intermediate GPS points recorded during the incident with direct Google Maps verification links.
+- **Section 65B Indian Evidence Act Certificate Export:** One-tap export to print/save an official, legally compliant electronic evidence certificate for police and judicial authorities.
 
 ---
 
@@ -63,4 +69,5 @@
 
 For complete details on all 65+ files, state hooks, types, native Android plugins, and offline algorithms, please refer directly to:
 👉 **[`PROJECT_KNOWLEDGE_BASE.md`](file:///Users/ritesh/Documents/Rakshika/Rakshika/PROJECT_KNOWLEDGE_BASE.md)**
+
 

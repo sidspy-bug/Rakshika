@@ -11,6 +11,7 @@ import { RegisterScreen } from "./pages/RegisterScreen";
 import { CommunityScreen } from "./pages/CommunityScreen";
 import { ProfileScreen } from "./pages/ProfileScreen";
 import { FakeCallScreen } from "./pages/FakeCallScreen";
+import { EvidenceVaultScreen } from "./pages/EvidenceVaultScreen";
 import { LandingPage } from "./pages/LandingPage";
 import { SplashScreen } from "./pages/SplashScreen";
 import { RoleSelectionScreen } from "./pages/RoleSelectionScreen";
@@ -161,6 +162,8 @@ export default function App() {
             {/* Full screen routes without bottom navigation */}
             <Route path="/sos" element={<ProtectedRoute><SosScreen /></ProtectedRoute>} />
             <Route path="/fake-call" element={<ProtectedRoute><FakeCallScreen /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><EvidenceVaultScreen /></ProtectedRoute>} />
+            <Route path="/history/:id" element={<ProtectedRoute><EvidenceVaultScreen /></ProtectedRoute>} />
             
             <Route path="*" element={<Navigate to="/splash" replace />} />
           </Routes>
