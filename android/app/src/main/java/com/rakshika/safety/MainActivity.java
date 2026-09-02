@@ -10,14 +10,17 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
         registerPlugin(SmsPlugin.class);
+        super.onCreate(savedInstanceState);
         
-        // Proactively request Camera and Audio permissions to prevent Capacitor WebView crash
+        // Proactively request Camera, Audio, and SMS permissions for seamless emergency operation
         String[] permissions = {
             Manifest.permission.CAMERA,
             Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.MODIFY_AUDIO_SETTINGS
+            Manifest.permission.MODIFY_AUDIO_SETTINGS,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         };
         
         boolean needsRequest = false;

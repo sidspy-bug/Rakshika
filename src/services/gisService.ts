@@ -15,7 +15,7 @@ const OVERPASS_BASE_URL = "https://lz4.overpass-api.de/api/interpreter";
 const PHOTON_BASE_URL = "https://photon.komoot.io";
 
 const headers = {
-  "User-Agent": "Rakshika-Women-Safety-Platform/2.0 (rakshika.safety.india@gmail.com)",
+  Accept: "application/json",
 };
 
 /**
