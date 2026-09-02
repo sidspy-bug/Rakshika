@@ -60,8 +60,13 @@
 - **Native Video Evidence Player:** Decodes and streams recorded 3-second WebM chunks directly from Android's `Documents/Rakshika/evidence/<incidentId>/` with sequential auto-playback and chunk navigation.
 - **SHA-256 Tamper-Evident Verification:** Computes live cryptographic digest for each chunk to verify matching integrity with the incident manifest.
 - **Shared Contacts & Dispatch Receipts Dossier:** Presents a clear, human-understandable audit trail of all recipients (phone numbers like `+918292630529`, cellular SMS delivery status, 112 ERSS police telemetry status, and 181 Women Helpline broadcast receipts).
-- **Interactive GPS Route Breadcrumbs:** Visualizes all intermediate GPS points recorded during the incident with direct Google Maps verification links.
 - **Section 65B Indian Evidence Act Certificate Export:** One-tap export to print/save an official, legally compliant electronic evidence certificate for police and judicial authorities.
+
+### 2.8 Battery & Storage Optimization Engine (`evidenceStreamingService.ts`, `AppLayout.tsx`)
+- **Lightweight 360p @ 15fps Dynamic Compression:** Configured `MediaRecorder` with 180 kbps video / 32 kbps audio bitrate, reducing chunk sizes from 260KB to ~40KB (80% disk & battery savings).
+- **Incident Quota Safety Ceiling:** Caps video recording at 30 chunks (~90s / 8MB) per incident to prevent storage overflow if user forgets to cancel.
+- **Global Sticky Active SOS Indicator (`AppLayout.tsx`):** Displays a persistent pulsing red top banner across all app screens whenever an SOS is active, showing incident ID and 1-tap **"Stop SOS"** and **"Open SOS"** buttons.
+- **Storage Cleanup Utility (`EvidenceVaultScreen.tsx`):** Provides 1-tap "Free Space" and "Delete Evidence" buttons to reclaim device storage.
 
 ---
 

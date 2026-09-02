@@ -18,6 +18,8 @@ import {
   FolderOpen,
   ArrowRight,
   Eye,
+  Trash2,
+  HardDrive,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
@@ -37,6 +39,7 @@ export function EvidenceVaultScreen() {
   const [selectedIncident, setSelectedIncident] = useState<SosIncident | null>(null);
   const [dossier, setDossier] = useState<IncidentDossierData | null>(null);
   const [isLoadingDossier, setIsLoadingDossier] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Video Player state
   const [activeChunkIndex, setActiveChunkIndex] = useState<number>(0);
@@ -57,6 +60,11 @@ export function EvidenceVaultScreen() {
       handleSelectIncident(list[0]);
     }
   }, [paramIncidentId]);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
 
   const handleSelectIncident = async (incident: SosIncident) => {
     setSelectedIncident(incident);
@@ -84,11 +92,47 @@ export function EvidenceVaultScreen() {
     }
   };
 
+  const handleDeleteEvidence = async (incidentId: string) => {
+    if (!window.confirm("Are you sure you want to delete local video evidence for this incident to free storage?")) {
+      return;
+    }
+    await evidencePlaybackService.deleteIncidentEvidence(incidentId);
+    if (selectedIncident?.id === incidentId) {
+      handleSelectIncident(selectedIncident);
+    }
+    showToast("Evidence files removed from local storage");
+  };
+
+  const handleClearAllStorage = async () => {
+    if (!window.confirm("Delete ALL cached test evidence files across all past incidents?")) {
+      return;
+    }
+    await evidencePlaybackService.clearAllOldEvidence();
+    if (selectedIncident) {
+      handleSelectIncident(selectedIncident);
+    }
+    showToast("All local evidence cache cleared");
+  };
+
   const activeChunk: PlayableEvidenceChunk | undefined =
     dossier?.playableChunks[activeChunkIndex];
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8 pb-24">
+    <div className="min-h-screen bg-black text-white p-4 md:p-8 pb-24 relative">
+      {/* Toast */}
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -40 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 bg-gray-900 border border-white/20 text-white px-5 py-2.5 rounded-full font-bold text-xs shadow-2xl z-[300] flex items-center gap-2"
+          >
+            <CheckCircle2 className="w-4 h-4 text-green-400" /> {toastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top Bar */}
       <div className="max-w-6xl mx-auto flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -108,15 +152,26 @@ export function EvidenceVaultScreen() {
           </div>
         </div>
 
-        {dossier && (
-          <Button
-            onClick={handlePrintCertificate}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg shadow-red-600/30"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleClearAllStorage}
+            className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+            title="Clear all stored evidence chunks to free phone storage"
           >
-            <Printer className="w-4 h-4" />
-            <span className="hidden sm:inline">Export Police Certificate</span>
-          </Button>
-        )}
+            <HardDrive className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">Free Space</span>
+          </button>
+
+          {dossier && (
+            <Button
+              onClick={handlePrintCertificate}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg shadow-red-600/30"
+            >
+              <Printer className="w-4 h-4" />
+              <span className="hidden sm:inline">Export Police Certificate</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -205,6 +260,13 @@ export function EvidenceVaultScreen() {
                     <span className="text-xs font-bold px-3 py-1 rounded-full bg-green-500/20 text-green-300 border border-green-500/40 flex items-center gap-1.5">
                       <FileCheck className="w-3.5 h-3.5" /> SHA-256 Tamper Evident
                     </span>
+                    <button
+                      onClick={() => handleDeleteEvidence(dossier.incident.id)}
+                      className="p-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg border border-red-500/30"
+                      title="Delete video evidence files to reclaim disk space"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
@@ -243,7 +305,7 @@ export function EvidenceVaultScreen() {
 
                 {dossier.playableChunks.length === 0 ? (
                   <div className="p-8 text-center text-gray-500 bg-black/40 rounded-2xl border border-white/5 text-xs">
-                    No video chunks captured for this incident.
+                    No video chunks captured for this incident (or files were cleaned to free storage).
                   </div>
                 ) : (
                   <div className="space-y-3">

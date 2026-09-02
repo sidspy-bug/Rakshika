@@ -342,6 +342,42 @@ class EvidencePlaybackService {
 </html>
     `;
   }
+  /**
+   * Deletes all local evidence files for a specific incident to reclaim storage
+   */
+  async deleteIncidentEvidence(incidentId: string): Promise<boolean> {
+    try {
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      await Filesystem.rmdir({
+        path: `Rakshika/evidence/${incidentId}`,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+      localStorage.removeItem(`rakshika_evidence_manifest_${incidentId}`);
+      return true;
+    } catch (err) {
+      console.warn(`[EvidencePlayback] Failed to delete evidence for ${incidentId}:`, err);
+      localStorage.removeItem(`rakshika_evidence_manifest_${incidentId}`);
+      return false;
+    }
+  }
+
+  /**
+   * Deletes all evidence files from device storage to completely free storage space
+   */
+  async clearAllOldEvidence(): Promise<boolean> {
+    try {
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      await Filesystem.rmdir({
+        path: "Rakshika/evidence",
+        directory: Directory.Documents,
+        recursive: true,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 export const evidencePlaybackService = new EvidencePlaybackService();
