@@ -77,6 +77,11 @@
 - **Interactive Mesh Diagnostics:** On-screen telemetry displaying BLE advertising status, background passive scanner state, local store-and-forward relay buffer packet count, and total relayed beacon count.
 - **1-Tap Live Bystander Relay Simulation:** Provides a direct interactive button on `SosScreen.tsx` (`BLE Mesh`) to simulate a passing bystander's device intercepting an offline 25-byte distress beacon, caching it in the relay buffer, stepping into network coverage, and forwarding it to the emergency contacts with instant blackbox log verification.
 
+### 2.11 Native Hardware BLE Mesh Radio Subsystem (`BleMeshPlugin.java`, `airTagMeshRelayService.ts`)
+- **Native Android Hardware Peripheral (`BluetoothLeAdvertiser`):** Enables raw physical radio broadcasting of the encrypted 25-byte distress beacon over standard Bluetooth Low Energy (FD6F Service UUID & `0x0952` Manufacturer ID) without requiring cellular network or Wi-Fi.
+- **Native Android Hardware Central Scanner (`BluetoothLeScanner`):** Continuously scans for nearby peer distress beacons in the background with `ScanFilter`, capturing raw RSSI signal strength and payload bytes over the air between physical devices.
+- **Airplane Mode Operation Guideline:** Bluetooth must be toggled ON (which Android natively supports while in Airplane Mode) on both the victim and bystander devices for over-the-air BLE radio packet transmission.
+
 ---
 
 ## 3. Master Reference File

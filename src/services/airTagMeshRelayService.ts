@@ -9,6 +9,7 @@
  *    it automatically flushes all buffered emergency beacons to Firestore (`sos_mesh_relays`).
  */
 
+import { registerPlugin } from "@capacitor/core";
 import { db } from "./firebase";
 import { doc, setDoc } from "firebase/firestore";
 import {
@@ -16,6 +17,19 @@ import {
   decryptSosBeacon,
   type SosBeaconPayload,
 } from "./cryptoMeshService";
+
+interface BleMeshNativePlugin {
+  startAdvertising(options: { payload: string }): Promise<{ success: boolean; error?: string }>;
+  stopAdvertising(): Promise<{ success: boolean }>;
+  startScanning(): Promise<{ success: boolean; error?: string }>;
+  stopScanning(): Promise<{ success: boolean }>;
+  addListener(
+    eventName: "onBeaconDetected",
+    listenerFunc: (data: { ciphertext: string; rssi: number; deviceAddress?: string; timestamp: number }) => void
+  ): Promise<{ remove: () => void }>;
+}
+
+const BleMesh = registerPlugin<BleMeshNativePlugin>("BleMeshPlugin");
 
 export interface BufferedMeshPacket {
   packetId: string;
@@ -115,7 +129,15 @@ class AirTagMeshRelayService {
 
     console.log(`[AirTagMesh] 📡 Broadcasting encrypted SOS beacon: ${ciphertext.slice(0, 16)}...`);
     
-    // Broadcast locally via Web BroadcastChannel for multi-tab simulation
+    // 1. Hardware Bluetooth Radio Advertising (Over-The-Air BLE)
+    try {
+      await BleMesh.startAdvertising({ payload: ciphertext });
+      console.log("[AirTagMesh] 📡 Native Hardware BLE beacon advertising engaged over physical radio.");
+    } catch (nativeErr) {
+      console.warn("[AirTagMesh] Native BLE advertising fallback:", nativeErr);
+    }
+
+    // 2. Broadcast locally via Web BroadcastChannel for multi-tab simulation
     if (typeof BroadcastChannel !== "undefined") {
       const channel = new BroadcastChannel("rakshika_mesh_channel");
       channel.postMessage({
@@ -135,6 +157,9 @@ class AirTagMeshRelayService {
   stopBroadcasting(): void {
     this.isAdvertising = false;
     this.activeBeaconCiphertext = null;
+    try {
+      BleMesh.stopAdvertising().catch(() => {});
+    } catch (ignored) {}
     this.notifyListeners();
     console.log("[AirTagMesh] Stopped broadcasting SOS beacon.");
   }
@@ -209,7 +234,22 @@ class AirTagMeshRelayService {
     if (this.isScanning) return;
     this.isScanning = true;
 
-    // Listen on BroadcastChannel for multi-device / multi-window simulation
+    // 1. Hardware Bluetooth Radio Scanner (Over-The-Air BLE)
+    try {
+      BleMesh.startScanning().catch((err) =>
+        console.warn("[AirTagMesh] Native BLE scan start error:", err)
+      );
+      BleMesh.addListener("onBeaconDetected", (data) => {
+        console.log("[AirTagMesh] ⚡ Native BLE beacon received over the air:", data);
+        if (data.ciphertext && data.ciphertext !== this.activeBeaconCiphertext) {
+          this.receiveInterceptedBeacon(data.ciphertext, data.rssi || -60);
+        }
+      }).catch((err) => console.warn("[AirTagMesh] Native BLE listener add error:", err));
+    } catch (nativeErr) {
+      console.warn("[AirTagMesh] Native BLE scanner fallback:", nativeErr);
+    }
+
+    // 2. Listen on BroadcastChannel for multi-device / multi-window simulation
     if (typeof BroadcastChannel !== "undefined") {
       const channel = new BroadcastChannel("rakshika_mesh_channel");
       channel.onmessage = (event) => {
@@ -241,6 +281,9 @@ class AirTagMeshRelayService {
       clearInterval(this.scanInterval);
       this.scanInterval = null;
     }
+    try {
+      BleMesh.stopScanning().catch(() => {});
+    } catch (ignored) {}
     this.notifyListeners();
     console.log("[AirTagMesh] Stopped mesh scanner.");
   }
