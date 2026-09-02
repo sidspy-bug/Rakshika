@@ -57,9 +57,10 @@
 - **Clean ASCII SMS Standard:** Replaced emojis with GSM 7-bit standard ASCII characters (`EMERGENCY SOS: I need help immediately. Live Location: https://maps.google.com/?q=lat,lng [ID: xxx]`) to prevent carrier 70-character UCS-2 encoding truncation.
 
 ### 2.7 Forensic Evidence Vault & Police Dossier Engine (`evidencePlaybackService.ts`, `EvidenceVaultScreen.tsx`)
-- **Native Video Evidence Player:** Decodes and streams recorded 3-second WebM chunks directly from Android's `Documents/Rakshika/evidence/<incidentId>/` with sequential auto-playback and chunk navigation.
-- **SHA-256 Tamper-Evident Verification:** Computes live cryptographic digest for each chunk to verify matching integrity with the incident manifest.
-- **Shared Contacts & Dispatch Receipts Dossier:** Presents a clear, human-understandable audit trail of all recipients (phone numbers like `+918292630529`, cellular SMS delivery status, 112 ERSS police telemetry status, and 181 Women Helpline broadcast receipts).
+- **Single Master Video Assembly (`master_evidence.webm`):** Captures in fail-safe 3-second slices during an active SOS, and as soon as SOS stops, automatically stitches all slices into ONE single, continuous master video timeline with standard scrubber and full playback controls.
+- **High-Contrast Professional Theme:** Designed with crystal-clear slate/indigo containers and high-contrast typography for legibility under all lighting conditions.
+- **Instant Timeline Deletion & Cache Clearance:** Completely purges both device storage files (`Documents/Rakshika/evidence/`) and `localStorage` records with real-time UI synchronization (no orphaned or phantom data).
+- **100% Real Data Guarantee:** Exclusively shows genuine recorded contacts and GPS data from the actual incident.
 - **Section 65B Indian Evidence Act Certificate Export:** One-tap export to print/save an official, legally compliant electronic evidence certificate for police and judicial authorities.
 
 ### 2.8 Battery & Storage Optimization Engine (`evidenceStreamingService.ts`, `AppLayout.tsx`)

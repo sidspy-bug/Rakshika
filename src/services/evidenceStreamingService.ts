@@ -1,15 +1,14 @@
 /**
- * Evidence Streaming Service
+ * Evidence Streaming & Video Assembly Service
  *
  * Implements chunked live-streaming audio/video recording with SHA-256
- * cryptographic integrity hashing (Review Items 10 & 13).
+ * cryptographic integrity hashing.
  *
- * Battery & Storage Optimizations:
- * - Efficient 360p @ 15fps video capture with 180 kbps video / 32 kbps audio bitrate.
- * - Caps chunk sizes to ~35-50 KB per 3s slice (reducing storage usage by 80%).
- * - Hard safety cap of 30 chunks (~90 seconds / 8MB) per incident to prevent disk overflow.
- * - Background visibility management to prevent runaway battery drain when app is closed.
- * - Fault tolerance: Chunks are backed up locally and hashed with SHA-256 immediately.
+ * Key Architecture:
+ * 1. During active SOS: Streams in 3s chunks for zero data-loss fail-safe protection.
+ * 2. On SOS Stop: Stitches all captured chunks into a single unified master video
+ *    (master_evidence.webm) so victims and authorities can watch the complete
+ *    continuous timeline without fragmented chunk navigation!
  */
 
 import { storage, auth } from "./firebase";
@@ -36,11 +35,12 @@ export interface EvidenceManifest {
   uploadedChunks: number;
   failedChunks: number;
   totalBytes: number;
+  masterVideoUrl?: string;
   chunks: EvidenceChunkMeta[];
   integrityVerified: boolean;
 }
 
-const MAX_CHUNKS_PER_INCIDENT = 30; // 90 seconds of video evidence is plenty for legal forensics
+const MAX_CHUNKS_PER_INCIDENT = 30; // 90 seconds of video evidence
 const MAX_STORAGE_BYTES_PER_INCIDENT = 8 * 1024 * 1024; // 8 MB safety ceiling
 
 export class EvidenceChunkStreamer {
@@ -50,6 +50,7 @@ export class EvidenceChunkStreamer {
   private chunkIndex: number = 0;
   private manifest: EvidenceManifest;
   private isStreaming: boolean = false;
+  private capturedBlobs: Blob[] = [];
   private onChunkProcessedCallbacks: ((chunk: EvidenceChunkMeta, manifest: EvidenceManifest) => void)[] = [];
 
   constructor(incidentId: string) {
@@ -76,7 +77,6 @@ export class EvidenceChunkStreamer {
         return false;
       }
 
-      // Efficient 360p @ 15fps resolution to conserve battery and storage
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "user",
@@ -89,7 +89,6 @@ export class EvidenceChunkStreamer {
 
       this.stream = stream;
 
-      // Select supported mimeType
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
         ? "video/webm;codecs=vp8,opus"
         : MediaRecorder.isTypeSupported("video/mp4")
@@ -98,8 +97,8 @@ export class EvidenceChunkStreamer {
 
       const options: MediaRecorderOptions = {
         ...(mimeType ? { mimeType } : {}),
-        videoBitsPerSecond: 180000, // 180 kbps (Lightweight, clear video)
-        audioBitsPerSecond: 32000,  // 32 kbps (Clear speech audio)
+        videoBitsPerSecond: 180000,
+        audioBitsPerSecond: 32000,
       };
 
       const recorder = new MediaRecorder(stream, options);
@@ -115,18 +114,17 @@ export class EvidenceChunkStreamer {
         console.warn("[EvidenceStreamer] MediaRecorder error:", e);
       };
 
-      // 3000ms timeslices = emit chunks every 3 seconds
       recorder.start(3000);
       this.isStreaming = true;
       sosAuditLogger.log(
         "EVIDENCE_STREAM",
         "INFO",
-        `Evidence recording started with battery & storage optimization (Max ${MAX_CHUNKS_PER_INCIDENT} chunks / 8MB cap).`
+        `Evidence recording started (Max ${MAX_CHUNKS_PER_INCIDENT} chunks / 8MB cap).`
       );
 
       return true;
     } catch (err) {
-      console.warn("[EvidenceStreamer] Failed to initialize media stream (camera/mic denied or unavailable):", err);
+      console.warn("[EvidenceStreamer] Failed to initialize media stream:", err);
       return false;
     }
   }
@@ -135,7 +133,6 @@ export class EvidenceChunkStreamer {
    * Processes a newly captured 3-second chunk
    */
   private async processChunk(blob: Blob): Promise<void> {
-    // Safety check: Enforce quota to prevent phone storage overflow
     if (
       this.chunkIndex >= MAX_CHUNKS_PER_INCIDENT ||
       this.manifest.totalBytes >= MAX_STORAGE_BYTES_PER_INCIDENT
@@ -151,11 +148,12 @@ export class EvidenceChunkStreamer {
       return;
     }
 
+    this.capturedBlobs.push(blob);
     const currentIndex = this.chunkIndex++;
     const capturedAt = new Date().toISOString();
     const sizeBytes = blob.size;
 
-    // 1. Compute cryptographic SHA-256 hash
+    // Compute cryptographic SHA-256 hash
     const sha256 = await computeSHA256(blob);
 
     const chunkMeta: EvidenceChunkMeta = {
@@ -177,12 +175,11 @@ export class EvidenceChunkStreamer {
       `Chunk #${currentIndex} captured (${(sizeBytes / 1024).toFixed(1)} KB) | SHA-256: ${sha256.slice(0, 12)}...`,
       { chunkIndex: currentIndex, sizeBytes, sha256 }
     );
-    console.log(`[EvidenceStreamer] Chunk #${currentIndex} captured (${sizeBytes}B) | SHA-256: ${sha256.slice(0, 16)}...`);
 
-    // 2. Upload to Firebase Storage in background (if online)
+    // Upload to Firebase Storage in background (if online)
     this.uploadChunkToStorage(blob, chunkMeta).catch(() => {});
 
-    // 3. Save offline backup via Capacitor Filesystem
+    // Save offline backup via Capacitor Filesystem
     this.saveChunkLocally(blob, currentIndex).catch(() => {});
 
     this.notifyChunk(chunkMeta);
@@ -250,16 +247,44 @@ export class EvidenceChunkStreamer {
             directory: Directory.Documents,
             recursive: true,
           });
-          sosAuditLogger.log(
-            "EVIDENCE_STREAM",
-            "SUCCESS",
-            `Chunk #${index} saved to device disk at Documents/Rakshika/evidence/${this.incidentId}/chunk_${index}.webm (Offline protected)`
-          );
         }
       };
       reader.readAsDataURL(blob);
-    } catch {
-      // Browser preview fallback
+    } catch {}
+  }
+
+  /**
+   * Assembles and saves the complete single master video file
+   */
+  private async assembleAndSaveMasterVideo(): Promise<void> {
+    if (this.capturedBlobs.length === 0) return;
+
+    try {
+      const masterBlob = new Blob(this.capturedBlobs, { type: "video/webm" });
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      const reader = new FileReader();
+
+      reader.onloadend = async () => {
+        const resultStr = (reader.result as string) || "";
+        const markerIndex = resultStr.indexOf(";base64,");
+        const base64Data = markerIndex !== -1 ? resultStr.substring(markerIndex + 8) : "";
+        if (base64Data) {
+          await Filesystem.writeFile({
+            path: `Rakshika/evidence/${this.incidentId}/master_evidence.webm`,
+            data: base64Data,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+          sosAuditLogger.log(
+            "EVIDENCE_STREAM",
+            "SUCCESS",
+            `Unified master evidence video saved at Documents/Rakshika/evidence/${this.incidentId}/master_evidence.webm`
+          );
+        }
+      };
+      reader.readAsDataURL(masterBlob);
+    } catch (err) {
+      console.warn("[EvidenceStreamer] Master video assembly error:", err);
     }
   }
 
@@ -276,7 +301,7 @@ export class EvidenceChunkStreamer {
   }
 
   /**
-   * Stops live stream and releases camera/mic hardware
+   * Stops live stream, releases camera/mic, and stitches chunks into unified master video
    */
   async stopStream(): Promise<EvidenceManifest> {
     this.isStreaming = false;
@@ -296,13 +321,16 @@ export class EvidenceChunkStreamer {
       this.stream = null;
     }
 
+    // Assemble and save single master video file
+    await this.assembleAndSaveMasterVideo();
+
     this.manifest.stoppedAt = new Date().toISOString();
     this.saveManifestToLocal();
 
     sosAuditLogger.log(
       "EVIDENCE_STREAM",
       "INFO",
-      `Evidence stream stopped. Total chunks: ${this.manifest.totalChunks}, Total data: ${(this.manifest.totalBytes / 1024 / 1024).toFixed(2)} MB.`
+      `Evidence stream completed. Total chunks: ${this.manifest.totalChunks}, Total data: ${(this.manifest.totalBytes / 1024 / 1024).toFixed(2)} MB.`
     );
 
     return this.manifest;

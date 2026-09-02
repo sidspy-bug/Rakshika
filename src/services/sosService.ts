@@ -371,6 +371,32 @@ export function getSosHistory(): SosIncident[] {
 }
 
 /**
+ * Deletes a specific SOS incident from local history
+ */
+export function deleteSosIncident(incidentId: string): void {
+  try {
+    const history = getSosHistory().filter((inc) => inc.id !== incidentId);
+    localStorage.setItem(SOS_HISTORY_KEY, JSON.stringify(history));
+    localStorage.removeItem(`rakshika_evidence_manifest_${incidentId}`);
+  } catch (err) {
+    console.warn("[SosService] Failed to delete incident:", err);
+  }
+}
+
+/**
+ * Clears all SOS incident history and cached logs
+ */
+export function clearAllSosHistory(): void {
+  try {
+    localStorage.removeItem(SOS_HISTORY_KEY);
+    localStorage.removeItem(ACTIVE_SOS_KEY);
+    localStorage.removeItem("rakshika_sos_blackbox_logs");
+  } catch (err) {
+    console.warn("[SosService] Failed to clear SOS history:", err);
+  }
+}
+
+/**
  * Records a silent check-in event in the active SOS incident.
  */
 export function recordSilentCheckIn(responded: boolean): SosIncident | null {
