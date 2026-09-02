@@ -51,9 +51,16 @@
   - **181**: National Women Helpline (24/7)
   - **14490**: NCW 24×7 Women Helpline
 
+### 2.6 SOS Blackbox & Offline Diagnostic Logging Engine (`sosAuditLogger.ts`)
+- **Persistent Disk Audit Logging:** Records every millisecond event during an SOS trigger directly to device storage at `Documents/Rakshika/logs/sos_<id>_diagnostic.json` and `Documents/Rakshika/logs/rakshika_blackbox.log`.
+- **Airplane Mode / Radio-Off Handling:** When cellular modem is offline or in airplane mode, logs failure reason (`Radio Off / No Signal`), queues emergency SMS for auto-redelivery upon reconnection, and preserves local 3-second SHA-256 WebM evidence chunks to device Documents folder.
+- **Clean ASCII SMS Standard:** Replaced emojis with GSM 7-bit standard ASCII characters (`EMERGENCY SOS: I need help immediately. Live Location: https://maps.google.com/?q=lat,lng [ID: xxx]`) to prevent carrier 70-character UCS-2 encoding truncation.
+- **In-App Blackbox Terminal Viewer:** On-screen interactive diagnostic modal on `SosScreen.tsx` with category filters (SMS, GPS, BLE, Evidence, Errors), 1-click clipboard copy, and file export.
+
 ---
 
 ## 3. Master Reference File
 
 For complete details on all 65+ files, state hooks, types, native Android plugins, and offline algorithms, please refer directly to:
 👉 **[`PROJECT_KNOWLEDGE_BASE.md`](file:///Users/ritesh/Documents/Rakshika/Rakshika/PROJECT_KNOWLEDGE_BASE.md)**
+

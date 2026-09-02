@@ -13,6 +13,7 @@
 
 import { auth, db } from "./firebase";
 import { doc, setDoc } from "firebase/firestore";
+import { sosAuditLogger } from "./sosAuditLogger";
 
 export type SosStatus = "ACTIVE" | "CANCELLED" | "RESOLVED";
 export type SosSyncStatus = "PENDING" | "SYNCED" | "FAILED";
@@ -159,6 +160,13 @@ export function createOrGetActiveSos(userData?: {
 
     // 3. Persist synchronously to local storage BEFORE any async operation
     localStorage.setItem(ACTIVE_SOS_KEY, JSON.stringify(incident));
+    sosAuditLogger.setActiveIncident(incident.id);
+    sosAuditLogger.log(
+      "SOS_LIFECYCLE",
+      "CRITICAL",
+      `Active SOS locally established with ID: ${incident.id}`,
+      { userId: incident.userId, phone: incident.userPhone, isOnline: navigator.onLine }
+    );
     console.log(`[SosService] Active SOS established locally with ID: ${incident.id}`);
 
     return incident;
@@ -183,6 +191,11 @@ export function appendSosLocation(coords: { lat: number; lng: number }): SosInci
 
     active.locationHistory.push(point);
     localStorage.setItem(ACTIVE_SOS_KEY, JSON.stringify(active));
+    sosAuditLogger.log(
+      "GPS_TELEMETRY",
+      "INFO",
+      `GPS Fix Recorded: (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}) | Total Points: ${active.locationHistory.length}`
+    );
     return active;
   } catch (err) {
     console.error("[SosService] Failed to append location to active SOS:", err);
@@ -272,6 +285,7 @@ export async function syncSosToFirebase(incidentId?: string): Promise<{
     targetIncident.syncStatus = "SYNCED";
     targetIncident.syncError = undefined;
     localStorage.setItem(ACTIVE_SOS_KEY, JSON.stringify(targetIncident));
+    sosAuditLogger.log("FIREBASE_CLOUD", "SUCCESS", `SOS incident ${targetIncident.id} synced to Firestore database.`);
     console.log(`[SosService] SOS ${targetIncident.id} successfully synced to Firebase.`);
 
     return { success: true, incident: targetIncident };
@@ -280,6 +294,7 @@ export async function syncSosToFirebase(incidentId?: string): Promise<{
     targetIncident.syncStatus = "FAILED";
     targetIncident.syncError = err?.message || "Unknown synchronization error";
     localStorage.setItem(ACTIVE_SOS_KEY, JSON.stringify(targetIncident));
+    sosAuditLogger.log("FIREBASE_CLOUD", "WARN", `Firebase sync offline/deferred: ${targetIncident.syncError}`);
     // Notice: SOS status is still "ACTIVE"
     return { success: false, incident: targetIncident };
   } finally {
@@ -303,6 +318,8 @@ export async function stopSos(
 
   active.status = reason;
   active.resolvedAt = new Date().toISOString();
+
+  sosAuditLogger.log("SOS_LIFECYCLE", "INFO", `Active SOS ${active.id} stopped with status: ${reason}`);
 
   // 1. Archive to history list
   try {

@@ -17,6 +17,10 @@ import {
   Wifi,
   WifiOff,
   HelpCircle,
+  FileText,
+  Copy,
+  Download,
+  Terminal,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
@@ -36,6 +40,7 @@ import { airTagMeshRelayService } from "../services/airTagMeshRelayService";
 import { useSilentCheckIn } from "../hooks/useSilentCheckIn";
 import { useAirTagMesh } from "../hooks/useAirTagMesh";
 import { guardianAnchorService } from "../services/guardianAnchorService";
+import { sosAuditLogger, type SosAuditLogEntry } from "../services/sosAuditLogger";
 
 function Toast({ message }: { message: string }) {
   return (
@@ -62,6 +67,11 @@ export function SosScreen() {
   const [toastMsg, setToastMsg] = useState("Emergency Signals Dispatched");
   const [incident, setIncident] = useState<SosIncident | null>(() => existingActive);
 
+  // Connectivity state
+  const [isOnline, setIsOnline] = useState<boolean>(
+    () => (typeof navigator !== "undefined" ? navigator.onLine : true)
+  );
+
   // Advanced features state
   const [isGhostMode, setIsGhostModeState] = useState<boolean>(
     () => existingActive?.isGhostMode || false
@@ -69,6 +79,10 @@ export function SosScreen() {
   const [isCovertBlackout, setIsCovertBlackout] = useState(false);
   const [showJudgeConfigModal, setShowJudgeConfigModal] = useState(false);
   const [showAnchorModal, setShowAnchorModal] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [logFilter, setLogFilter] = useState<string>("ALL");
+  const [auditLogs, setAuditLogs] = useState<SosAuditLogEntry[]>(() => sosAuditLogger.getLogs());
+
   const [anchorMinutes, setAnchorMinutes] = useState(15);
   const [anchorDestination, setAnchorDestination] = useState("");
   const [activeAnchor, setActiveAnchor] = useState(() =>
@@ -111,6 +125,24 @@ export function SosScreen() {
   const isStartedRef = useRef<boolean>(false);
   const ghostTapCountRef = useRef<number>(0);
   const ghostTapTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Track online/offline transitions & audit logs
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    const unsubLogs = sosAuditLogger.subscribe((logs) => {
+      setAuditLogs([...logs]);
+    });
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      unsubLogs();
+    };
+  }, []);
 
   // Press and hold logic
   useEffect(() => {
@@ -158,6 +190,7 @@ export function SosScreen() {
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
       }
       if (evidenceStreamerRef.current) {
         evidenceStreamerRef.current.stopStream().catch(() => {});
@@ -168,38 +201,37 @@ export function SosScreen() {
   const triggerSosActions = async () => {
     isStartedRef.current = true;
 
-    if (isGhostMode) {
-      setIsCovertBlackout(true);
-    } else {
-      setToastMsg("Multi-Channel Emergency SOS Triggered");
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 4000);
-    }
-
-    // 1. Establish and persist local SOS state FIRST
+    // 1. Establish local-first synchronous SOS state
     const localIncident = createOrGetActiveSos();
-    if (isGhostMode) setGhostMode(true);
+    if (isGhostMode) {
+      setGhostMode(true);
+      setIsCovertBlackout(true);
+    }
     setIncident(localIncident);
+    setShowToast(true);
+    setToastMsg(isOnline ? "Emergency SOS Dispatched" : "Offline SOS Activated (Radio Resilient)");
+    setTimeout(() => setShowToast(false), 3500);
 
-    // 2. Start Live Location Tracking with Cache Fallback
-    let currentCoords: { lat: number; lng: number } = { lat: 28.6139, lng: 77.2090 };
+    // 2. Parallel GPS Acquisition & Multi-Channel Dispatch
+    let currentCoords = { lat: 28.6139, lng: 77.2090 };
 
-    if (navigator.geolocation) {
+    if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           currentCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           cacheUserLocation(currentCoords);
           appendSosLocation(currentCoords);
-
-          // Trigger Multi-Channel Dispatch with verified coordinates
           dispatchEngine.dispatchAll(localIncident, currentCoords);
         },
         () => {
-          // GPS Failed: Use Cached Last-Known Location
           const cached = getCachedLastLocation();
           if (cached) {
             currentCoords = { lat: cached.lat, lng: cached.lng };
-            console.log("[SosScreen] Using cached last-known GPS location:", currentCoords);
+            sosAuditLogger.log(
+              "GPS_TELEMETRY",
+              "WARN",
+              `Live GPS timeout (Airplane Mode?). Using cached last-known coordinates (${cached.lat.toFixed(5)}, ${cached.lng.toFixed(5)}).`
+            );
           }
           dispatchEngine.dispatchAll(localIncident, currentCoords);
         },
@@ -233,7 +265,7 @@ export function SosScreen() {
       const started = await streamer.startStream();
       setIsRecording(started);
     } catch (err) {
-      console.warn("[SosScreen] Evidence streaming could not initialize:", err);
+      sosAuditLogger.log("EVIDENCE_STREAM", "WARN", `Evidence streaming could not initialize: ${err}`);
     }
   };
 
@@ -281,60 +313,102 @@ export function SosScreen() {
     }
   };
 
-  // Judge contacts management
+  // Judge contacts handlers
   const handleAddJudgeContact = () => {
-    if (!newJudgePhone) return;
+    if (!newJudgePhone.trim()) return;
+    const cleanPhone = newJudgePhone.trim().replace(/[\s\-()]/g, "");
     const updated = [
       ...judgeContacts,
-      {
-        id: Date.now().toString(),
-        name: newJudgeName.trim() || `Emergency Contact ${judgeContacts.length + 1}`,
-        phone: newJudgePhone.trim(),
-        relationship: "Judge/Tester",
-        source: "manual_entry",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
+      { name: newJudgeName.trim() || `Tester ${judgeContacts.length + 1}`, phone: cleanPhone },
     ];
-    setJudgeContacts(updated as any);
+    setJudgeContacts(updated);
     localStorage.setItem("rakshika-emergency-contacts", JSON.stringify(updated));
     setNewJudgeName("");
     setNewJudgePhone("");
+    setToastMsg(`Added contact ${cleanPhone}`);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2000);
   };
 
-  const handleRemoveJudgeContact = (phone: string) => {
-    const updated = judgeContacts.filter((c) => c.phone !== phone);
+  const handleRemoveJudgeContact = (index: number) => {
+    const updated = judgeContacts.filter((_, i) => i !== index);
     setJudgeContacts(updated);
     localStorage.setItem("rakshika-emergency-contacts", JSON.stringify(updated));
   };
 
-  // Guardian Anchor pre-trip timer
-  const handleStartAnchor = async () => {
-    const anchor = await guardianAnchorService.startAnchor(anchorMinutes, anchorDestination);
+  // Pre-Trip Guardian Anchor handlers
+  const handleStartAnchor = () => {
+    const coords = getCachedLastLocation();
+    const anchor = guardianAnchorService.startAnchor(
+      anchorMinutes,
+      anchorDestination || "Remote Area Zone",
+      coords ? { lat: coords.lat, lng: coords.lng } : undefined
+    );
     setActiveAnchor(anchor);
     setShowAnchorModal(false);
-    setToastMsg(`⚓ Guardian Anchor active for ${anchorMinutes} mins`);
+    setToastMsg(`Guardian Anchor Set for ${anchorMinutes} mins`);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  const handleCheckInAnchor = async () => {
-    await guardianAnchorService.checkInSafe();
+  const handleCheckInAnchor = () => {
+    guardianAnchorService.checkInSafe();
     setActiveAnchor(null);
-    setToastMsg("✅ Checked in safely. Anchor resolved.");
+    setShowAnchorModal(false);
+    setToastMsg("Safely Checked In! Anchor Cleared.");
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  // ─── GHOST / COVERT MODE BLACKOUT VIEW ─────────────────────────────────
-  if (isCovertBlackout && activated) {
+  // Blackbox log actions
+  const handleCopyLogs = () => {
+    const text = sosAuditLogger.exportLogsAsText();
+    navigator.clipboard.writeText(text);
+    setToastMsg("Blackbox logs copied to clipboard!");
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2500);
+  };
+
+  const handleExportLogs = async () => {
+    try {
+      const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
+      const text = sosAuditLogger.exportLogsAsText();
+      const fileName = `Rakshika_Blackbox_${Date.now()}.log`;
+      await Filesystem.writeFile({
+        path: `Rakshika/logs/${fileName}`,
+        data: text,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+        recursive: true,
+      });
+      setToastMsg(`Saved to Documents/Rakshika/logs/${fileName}`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3500);
+    } catch {
+      handleCopyLogs();
+    }
+  };
+
+  const filteredLogs = auditLogs.filter((l) => {
+    if (logFilter === "ALL") return true;
+    if (logFilter === "SMS") return l.category === "SMS_CELLULAR";
+    if (logFilter === "GPS") return l.category === "GPS_TELEMETRY";
+    if (logFilter === "EVIDENCE") return l.category === "EVIDENCE_STREAM";
+    if (logFilter === "BLE") return l.category === "BLE_AIRTAG_MESH";
+    if (logFilter === "ERRORS") return l.level === "ERROR" || l.level === "CRITICAL" || l.level === "WARN";
+    return true;
+  });
+
+  // Render Covert Blackout screen if Ghost Mode is active
+  if (isCovertBlackout) {
     return (
       <div
         onClick={handleCovertTap}
-        className="fixed inset-0 z-[300] bg-black text-black flex flex-col items-center justify-center select-none cursor-pointer"
+        className="fixed inset-0 z-[300] bg-black text-black flex items-center justify-center select-none cursor-pointer"
+        style={{ backgroundColor: "#000000" }}
       >
-        <div className="opacity-0 pointer-events-none">
-          <p>Ghost Mode Active. Triple-tap anywhere to restore UI.</p>
+        <div className="sr-only">
+          Covert Ghost Mode active. Triple tap screen within 1 second to reveal active interface.
         </div>
       </div>
     );
@@ -354,10 +428,10 @@ export function SosScreen() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
-            className="flex flex-col items-center justify-between w-full h-full p-6 pt-12 pb-10"
+            className="flex flex-col items-center justify-between w-full h-full p-6 pt-10 pb-8"
           >
-            {/* Top Bar: Anchor & Judge Settings */}
-            <div className="w-full flex items-center justify-between max-w-md px-2">
+            {/* Top Bar: Anchor, Judge Contacts & Blackbox Logs */}
+            <div className="w-full flex flex-wrap items-center justify-between gap-2 max-w-md px-1">
               <button
                 onClick={() => setShowAnchorModal(true)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
@@ -371,13 +445,36 @@ export function SosScreen() {
               </button>
 
               <button
+                onClick={() => setShowLogsModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition-all"
+              >
+                <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Blackbox Logs</span>
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              </button>
+
+              <button
                 onClick={() => setShowJudgeConfigModal(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-gray-300 border border-white/10 hover:bg-white/20 transition-all"
               >
                 <Settings className="w-3.5 h-3.5" />
-                <span>Judge Demo Setup ({judgeContacts.length})</span>
+                <span>Contacts ({judgeContacts.length})</span>
               </button>
             </div>
+
+            {/* Offline Status Warning Banner */}
+            {!isOnline && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-md mt-2 px-3 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2"
+              >
+                <WifiOff className="w-4 h-4 flex-shrink-0 text-amber-400" />
+                <span>
+                  <strong>Offline Mode Active:</strong> Cellular SMS, AirTag BLE Mesh, and SHA-256 disk logging will protect you without internet.
+                </span>
+              </motion.div>
+            )}
 
             {/* Main Header & SOS Button */}
             <div className="flex flex-col items-center">
@@ -450,61 +547,73 @@ export function SosScreen() {
               </button>
             </div>
 
-            {/* Bottom Status & Cancel */}
-            <div className="flex flex-col items-center gap-3 w-full max-w-xs">
-              <div className="flex items-center gap-2 text-[11px] text-gray-500">
-                <Radio className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-                <span>AirTag BLE Mesh Ready • {meshStats.bufferedPacketsCount} buffered</span>
+            {/* Bottom Indicator Bar */}
+            <div className="w-full max-w-md flex items-center justify-between text-xs text-gray-400 bg-white/5 p-3 rounded-2xl border border-white/10">
+              <div className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
+                <span>AirTag Mesh: {meshStats.cachedRelaysCount} Relays</span>
               </div>
-
-              <Button
-                variant="ghost"
-                className="w-full text-gray-400 hover:text-white"
-                onClick={cancelSos}
-              >
-                Cancel
-              </Button>
+              <div className="flex items-center gap-2">
+                {isOnline ? (
+                  <Wifi className="w-4 h-4 text-green-400" />
+                ) : (
+                  <WifiOff className="w-4 h-4 text-amber-400" />
+                )}
+                <span>{isOnline ? "Cellular/Cloud Online" : "Offline Protected"}</span>
+              </div>
             </div>
           </motion.div>
         ) : (
-          // ─── ACTIVE SOS SCREEN (MULTI-CHANNEL DISPATCH GRID) ────────────────
+          // ─── ACTIVATED SCREEN ──────────────────────────────────────────────
           <motion.div
-            key="active-sos"
-            initial={{ opacity: 0, backgroundColor: "#000" }}
-            animate={{ opacity: 1, backgroundColor: "#8b0000" }}
-            className="absolute inset-0 flex flex-col items-center justify-start p-6 pt-12 overflow-y-auto"
+            key="activated-sos"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="flex flex-col items-center justify-between w-full h-full p-6 pt-10 pb-8 bg-gradient-to-b from-[#b71c1c] via-[#5f0909] to-black overflow-y-auto"
           >
             {countdown > 0 ? (
-              <div className="flex flex-col items-center justify-center h-full w-full">
-                <motion.h2
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                  className="text-8xl font-black mb-6"
-                >
-                  {countdown}
-                </motion.h2>
-                <p className="text-xl text-white/80 uppercase tracking-wider font-bold mb-10">
-                  Broadcasting Help In...
-                </p>
+              // Cancellation window (3-second buffer)
+              <div className="flex flex-col items-center justify-center h-full gap-6">
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold uppercase tracking-wider mb-2">
+                    Dispatching SOS In
+                  </h2>
+                  <div className="text-8xl font-black text-white">{countdown}</div>
+                </div>
                 <Button
                   size="lg"
                   variant="secondary"
-                  className="w-full max-w-xs text-red-600 font-bold"
+                  className="bg-white text-red-600 hover:bg-gray-200 font-bold px-8 py-4 rounded-full text-lg shadow-2xl"
                   onClick={cancelSos}
                 >
-                  <X className="w-5 h-5 mr-2" /> Cancel SOS
+                  <X className="w-6 h-6 mr-2" /> Cancel SOS
                 </Button>
               </div>
             ) : (
-              <div className="w-full max-w-md flex flex-col items-center pb-8">
-                {/* SOS Active Badge */}
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-2xl">
+              // ─── FULL ACTIVE SOS DISPATCH DASHBOARD ─────────────────────────
+              <div className="flex flex-col items-center w-full max-w-md">
+                {/* SOS Active Badge & Top Controls */}
+                <div className="w-full flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-red-500/30 text-red-200 border border-red-500/40">
+                    ID: {incident?.id.slice(-8) || "ACTIVE"}
+                  </span>
+                  <button
+                    onClick={() => setShowLogsModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-black/60 text-cyan-300 border border-cyan-500/50 hover:bg-black/80"
+                  >
+                    <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>View Blackbox Log</span>
+                  </button>
+                </div>
+
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-2 shadow-2xl">
                   <ShieldAlert className="w-8 h-8 text-red-600 animate-pulse" />
                 </div>
                 <h2 className="text-2xl font-black uppercase tracking-wider mb-1">
                   SOS Active — Help Dispatched
                 </h2>
-                <p className="text-white/70 text-xs text-center mb-6">
+                <p className="text-white/70 text-xs text-center mb-4">
                   Emergency signals transmitting across all redundant channels.
                 </p>
 
@@ -555,13 +664,17 @@ export function SosScreen() {
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-bold text-white">Emergency Contacts SMS</h4>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                          {judgeContacts.length > 0
-                            ? `Sent to ${judgeContacts.length} Contacts`
-                            : "Sent"}
+                          {dispatchState?.channels.CELLULAR_SMS.status === "SUCCESS"
+                            ? "Sent via Modem"
+                            : dispatchState?.channels.CELLULAR_SMS.status === "FAILED"
+                            ? isOnline
+                              ? "Failed"
+                              : "Modem Offline (Airplane Mode)"
+                            : "Dispatching..."}
                         </span>
                       </div>
                       <p className="text-[11px] text-white/60">
-                        Cellular SMS + Live Google Maps coordinates
+                        Plain ASCII SMS + Live Google Maps coordinates
                       </p>
                     </div>
                   </div>
@@ -597,7 +710,7 @@ export function SosScreen() {
                         </span>
                       </div>
                       <p className="text-[11px] text-white/60">
-                        3s chunks • SHA-256: {lastChunkHash || "Active"} • Cloud + Offline
+                        3s chunks • SHA-256: {lastChunkHash || "Active"} • Cloud + Disk
                       </p>
                     </div>
                   </div>
@@ -670,6 +783,133 @@ export function SosScreen() {
         )}
       </AnimatePresence>
 
+      {/* ─── BLACKBOX DIAGNOSTIC LOGS MODAL ──────────────────────────────── */}
+      <AnimatePresence>
+        {showLogsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-gray-950 border border-white/10 rounded-3xl p-5 w-full max-w-lg text-white shadow-2xl flex flex-col max-h-[88vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-5 h-5 text-cyan-400" />
+                  <div>
+                    <h3 className="font-bold text-base">SOS Blackbox Audit Logs</h3>
+                    <p className="text-[10px] text-gray-400">
+                      Stored in Documents/Rakshika/logs/ • {auditLogs.length} events
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowLogsModal(false)}
+                  className="text-gray-400 hover:text-white p-1 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center justify-between gap-2 py-3">
+                <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                  {["ALL", "SMS", "GPS", "EVIDENCE", "BLE", "ERRORS"].map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setLogFilter(filter)}
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                        logFilter === filter
+                          ? "bg-cyan-500 text-black border-cyan-400 font-black"
+                          : "bg-white/5 text-gray-400 border-white/10 hover:text-white"
+                      }`}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={handleCopyLogs}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold border border-white/10 text-gray-200"
+                    title="Copy full diagnostic log to clipboard"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy</span>
+                  </button>
+                  <button
+                    onClick={handleExportLogs}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-black font-black"
+                    title="Export log file to phone documents"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Save</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Log List View */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 my-1 font-mono text-xs">
+                {filteredLogs.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500 text-xs">
+                    No logs recorded for filter "{logFilter}". Trigger SOS to generate audit events.
+                  </div>
+                ) : (
+                  filteredLogs.map((log) => {
+                    const levelColors = {
+                      CRITICAL: "bg-red-500/20 text-red-300 border-red-500/30",
+                      ERROR: "bg-red-500/20 text-red-400 border-red-500/30",
+                      WARN: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+                      SUCCESS: "bg-green-500/20 text-green-300 border-green-500/30",
+                      INFO: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+                    };
+                    const colorClass = levelColors[log.level] || levelColors.INFO;
+
+                    return (
+                      <div
+                        key={log.id}
+                        className={`p-2.5 rounded-xl border ${colorClass} flex flex-col gap-1`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] opacity-75">
+                          <span className="font-bold tracking-wider">
+                            [{log.category}] • {log.level}
+                          </span>
+                          <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        <p className="text-white text-xs leading-relaxed">{log.message}</p>
+                        {log.details && (
+                          <pre className="text-[10px] text-gray-400 overflow-x-auto bg-black/40 p-1.5 rounded-lg">
+                            {JSON.stringify(log.details, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-gray-400">
+                <span>
+                  Network:{" "}
+                  <strong className={isOnline ? "text-green-400" : "text-amber-400"}>
+                    {isOnline ? "ONLINE" : "OFFLINE (Airplane Mode)"}
+                  </strong>
+                </span>
+                <button
+                  onClick={() => sosAuditLogger.clearLogs()}
+                  className="text-red-400 hover:text-red-300 text-[10px] font-bold"
+                >
+                  Clear Buffer
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ─── JUDGE / DEMO QUICK-CONFIG MODAL ─────────────────────────────── */}
       <AnimatePresence>
         {showJudgeConfigModal && (
@@ -698,7 +938,7 @@ export function SosScreen() {
               <div className="flex flex-col gap-2 mb-4 bg-white/5 p-3 rounded-2xl border border-white/10">
                 <input
                   type="text"
-                  placeholder="Judge / Tester Name (e.g. Judge Priya)"
+                  placeholder="Tester / Judge Name (e.g. Mentor Dr. Sharma)"
                   value={newJudgeName}
                   onChange={(e) => setNewJudgeName(e.target.value)}
                   className="bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
@@ -706,10 +946,10 @@ export function SosScreen() {
                 <div className="flex gap-2">
                   <input
                     type="tel"
-                    placeholder="Phone Number (e.g. +91 9876543210)"
+                    placeholder="Phone with country code (e.g. +918292630529)"
                     value={newJudgePhone}
                     onChange={(e) => setNewJudgePhone(e.target.value)}
-                    className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
+                    className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 font-mono"
                   />
                   <Button
                     onClick={handleAddJudgeContact}
@@ -720,19 +960,24 @@ export function SosScreen() {
                 </div>
               </div>
 
-              {/* Existing Contacts List */}
-              <div className="max-h-48 overflow-y-auto space-y-2">
+              {/* Contacts List */}
+              <div className="max-h-48 overflow-y-auto space-y-2 mb-4 pr-1">
                 {judgeContacts.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-3">No emergency contacts configured yet.</p>
+                  <p className="text-xs text-gray-500 italic text-center py-4">
+                    No contacts configured. Enter your phone number above!
+                  </p>
                 ) : (
-                  judgeContacts.map((c, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-black/40 p-2.5 rounded-xl border border-white/5">
+                  judgeContacts.map((c, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between bg-white/5 px-3 py-2 rounded-xl border border-white/5"
+                    >
                       <div>
-                        <p className="text-sm font-bold text-white">{c.name}</p>
-                        <p className="text-xs text-gray-400">{c.phone}</p>
+                        <p className="text-xs font-bold text-white">{c.name}</p>
+                        <p className="text-[11px] font-mono text-gray-400">{c.phone}</p>
                       </div>
                       <button
-                        onClick={() => handleRemoveJudgeContact(c.phone)}
+                        onClick={() => handleRemoveJudgeContact(i)}
                         className="text-red-400 hover:text-red-300 p-1"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -744,7 +989,7 @@ export function SosScreen() {
 
               <Button
                 onClick={() => setShowJudgeConfigModal(false)}
-                className="w-full mt-4 bg-white/10 hover:bg-white/20 text-white font-bold text-sm py-2 rounded-xl"
+                className="w-full bg-white text-black font-bold text-sm py-2.5 rounded-2xl hover:bg-gray-200"
               >
                 Done
               </Button>

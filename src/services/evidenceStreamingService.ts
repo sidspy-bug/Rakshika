@@ -15,6 +15,7 @@
 import { storage, auth } from "./firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { computeSHA256 } from "./cryptoMeshService";
+import { sosAuditLogger } from "./sosAuditLogger";
 
 export interface EvidenceChunkMeta {
   index: number;
@@ -140,6 +141,12 @@ export class EvidenceChunkStreamer {
     this.manifest.totalBytes += sizeBytes;
     this.saveManifestToLocal();
 
+    sosAuditLogger.log(
+      "EVIDENCE_STREAM",
+      "INFO",
+      `Chunk #${currentIndex} captured (${(sizeBytes / 1024).toFixed(1)} KB) | SHA-256: ${sha256.slice(0, 12)}...`,
+      { chunkIndex: currentIndex, sizeBytes, sha256 }
+    );
     console.log(`[EvidenceStreamer] Chunk #${currentIndex} captured (${sizeBytes}B) | SHA-256: ${sha256.slice(0, 16)}...`);
 
     // 2. Upload to Firebase Storage in background
@@ -186,6 +193,7 @@ export class EvidenceChunkStreamer {
       this.manifest.uploadedChunks++;
 
       this.saveManifestToLocal();
+      sosAuditLogger.log("EVIDENCE_STREAM", "SUCCESS", `Chunk #${chunkMeta.index} uploaded to cloud storage.`);
       console.log(`[EvidenceStreamer] ✅ Chunk #${chunkMeta.index} uploaded successfully to Cloud.`);
     } catch (err: any) {
       console.warn(`[EvidenceStreamer] Chunk #${chunkMeta.index} cloud upload failed:`, err?.message || err);
@@ -214,11 +222,16 @@ export class EvidenceChunkStreamer {
             directory: Directory.Documents,
             recursive: true,
           });
+          sosAuditLogger.log(
+            "EVIDENCE_STREAM",
+            "SUCCESS",
+            `Chunk #${index} saved to device disk at Documents/Rakshika/evidence/${this.incidentId}/chunk_${index}.webm (Offline protected)`
+          );
         }
       };
       reader.readAsDataURL(blob);
     } catch {
-      // Ignore if filesystem plugin is not available in web browser
+      // Browser preview fallback
     }
   }
 

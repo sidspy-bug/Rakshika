@@ -5,15 +5,17 @@
  * channels (Cellular SMS, Firebase Cloud, Institutional Services, Volunteers, and BLE Mesh).
  *
  * Core Guarantee:
- * - SMS is sent over the cellular modem (independent of internet).
+ * - SMS is sent over the cellular modem in clean plain-ASCII format (independent of internet).
  * - Cloud sync has a 5s race timeout and auto-retries via exponential backoff.
  * - BLE Mesh beacon begins advertising immediately for zero-connectivity situations.
  * - Real-time DispatchState tracks success/failure of every channel.
+ * - Full audit logs are written to sosAuditLogger and persisted on device.
  */
 
 import { registerPlugin } from "@capacitor/core";
 import { syncSosToFirebase, type SosIncident } from "./sosService";
 import { airTagMeshRelayService } from "./airTagMeshRelayService";
+import { sosAuditLogger } from "./sosAuditLogger";
 
 const SmsPlugin = registerPlugin<any>("SmsPlugin");
 
@@ -57,7 +59,11 @@ export class DispatchEngine {
   constructor() {
     if (typeof window !== "undefined") {
       window.addEventListener("online", () => {
-        console.log("[DispatchEngine] Connection restored. Retrying failed dispatch channels...");
+        sosAuditLogger.log(
+          "NETWORK_RADIO",
+          "INFO",
+          "Connection restored. Retrying all pending offline dispatch channels..."
+        );
         this.retryFailedChannels().catch(() => {});
       });
     }
@@ -139,13 +145,23 @@ export class DispatchEngine {
     const lat = currentLocation?.lat || 28.6139;
     const lng = currentLocation?.lng || 77.2090;
 
-    console.log(`[DispatchEngine] 🚨 Initiating full multi-channel dispatch for SOS ${incident.id}...`);
+    sosAuditLogger.setActiveIncident(incident.id);
+    sosAuditLogger.log(
+      "SOS_LIFECYCLE",
+      "CRITICAL",
+      `Initiating multi-channel dispatch for SOS ${incident.id} at (${lat.toFixed(5)}, ${lng.toFixed(5)})`,
+      { incidentId: incident.id, lat, lng, isOnline: navigator.onLine }
+    );
 
     // 1. Channel: Cellular SMS (Direct to Emergency Contacts)
-    this.dispatchCellularSms(incident, lat, lng).catch(() => {});
+    this.dispatchCellularSms(incident, lat, lng).catch((e) => {
+      sosAuditLogger.log("SMS_CELLULAR", "ERROR", `Cellular SMS exception: ${e?.message || e}`);
+    });
 
     // 2. Channel: Cloud Sync (Firebase Firestore)
-    this.dispatchFirebaseSync(incident.id).catch(() => {});
+    this.dispatchFirebaseSync(incident.id).catch((e) => {
+      sosAuditLogger.log("FIREBASE_CLOUD", "ERROR", `Firebase sync exception: ${e?.message || e}`);
+    });
 
     // 3. Channel: Simulated 112 ERSS & Police Dispatch
     this.dispatchInstitutional112().catch(() => {});
@@ -164,6 +180,7 @@ export class DispatchEngine {
 
   /**
    * Channel 1: Cellular SMS to configured judge/user emergency contacts
+   * (Plain ASCII text, zero emojis, concise formatting)
    */
   private async dispatchCellularSms(
     incident: SosIncident,
@@ -178,8 +195,14 @@ export class DispatchEngine {
     this.saveState();
 
     try {
-      const locationUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-      const message = `🚨 EMERGENCY SOS! I need help immediately. Live Location: ${locationUrl} [Rakshika ID: ${incident.id.slice(-6)}]`;
+      // Clean, plain-ASCII emergency message (NO emojis to avoid 16-bit UCS-2 encoding issues)
+      const locationUrl = `https://maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
+      const message = `EMERGENCY SOS: I need help immediately. Live Location: ${locationUrl} [ID: ${incident.id.slice(-6)}]`;
+
+      sosAuditLogger.log("SMS_CELLULAR", "INFO", `Prepared clean ASCII SMS: "${message}"`, {
+        messageLength: message.length,
+        isAirplaneMode: !navigator.onLine,
+      });
 
       // Read configured emergency contacts
       const phoneNumbers: string[] = [];
@@ -195,7 +218,7 @@ export class DispatchEngine {
         }
       } catch {}
 
-      // Fallback to legacy profile contacts if no modern contacts found
+      // Fallback to profile contacts if none configured in quick settings
       if (phoneNumbers.length === 0) {
         try {
           const profileRaw = localStorage.getItem("user_profile");
@@ -210,26 +233,34 @@ export class DispatchEngine {
       if (phoneNumbers.length === 0) {
         channel.status = "FAILED";
         channel.error = "No emergency contacts configured";
-        console.warn("[DispatchEngine] No emergency contacts found to send SMS.");
+        sosAuditLogger.log("SMS_CELLULAR", "WARN", "No emergency contacts found in local storage to dispatch SMS.");
       } else {
         let sentCount = 0;
-        for (const phone of phoneNumbers) {
+        for (const rawPhone of phoneNumbers) {
+          const phone = rawPhone.replace(/[\s\-()]/g, "");
           try {
+            sosAuditLogger.log("SMS_CELLULAR", "INFO", `Dispatching native SMS to ${phone}...`);
             await SmsPlugin.sendSms({ phone, message });
             sentCount++;
-            console.log(`[DispatchEngine] 📲 SMS successfully dispatched to: ${phone}`);
+            sosAuditLogger.log("SMS_CELLULAR", "SUCCESS", `SMS sent via modem to ${phone}`);
           } catch (smsErr: any) {
-            console.warn(`[DispatchEngine] Native SMS failed for ${phone}:`, smsErr?.message || smsErr);
+            const errMsg = smsErr?.message || String(smsErr);
+            sosAuditLogger.log("SMS_CELLULAR", "WARN", `SMS send to ${phone} failed (Radio off / Airplane mode?): ${errMsg}`);
           }
         }
 
         channel.status = sentCount > 0 ? "SUCCESS" : "FAILED";
         channel.recipientCount = sentCount;
-        if (sentCount === 0) channel.error = "Native SMS bridge failed (running in web preview)";
+        if (sentCount === 0) {
+          channel.error = !navigator.onLine
+            ? "Cellular modem offline (Airplane Mode / No Carrier Signal)"
+            : "Native SMS bridge returned error";
+        }
       }
     } catch (err: any) {
       channel.status = "FAILED";
       channel.error = err?.message || "SMS dispatch error";
+      sosAuditLogger.log("SMS_CELLULAR", "ERROR", `SMS Dispatch error: ${err?.message}`);
     }
 
     channel.timestamp = new Date().toISOString();
@@ -249,18 +280,22 @@ export class DispatchEngine {
     this.saveState();
 
     try {
+      sosAuditLogger.log("FIREBASE_CLOUD", "INFO", `Attempting cloud sync for ${incidentId}... (Online: ${navigator.onLine})`);
       const res = await syncSosToFirebase(incidentId);
       if (res.success) {
         channel.status = "SUCCESS";
+        sosAuditLogger.log("FIREBASE_CLOUD", "SUCCESS", `SOS incident ${incidentId} synchronized to Firestore.`);
       } else {
         channel.status = "FAILED";
         channel.error = res.incident?.syncError || "Device offline";
         this.enqueueRetry("FIREBASE_SYNC", incidentId);
+        sosAuditLogger.log("FIREBASE_CLOUD", "WARN", `Cloud sync failed (${channel.error}). Enqueued for offline retry.`);
       }
     } catch (err: any) {
       channel.status = "FAILED";
       channel.error = err?.message || "Cloud sync error";
       this.enqueueRetry("FIREBASE_SYNC", incidentId);
+      sosAuditLogger.log("FIREBASE_CLOUD", "WARN", `Cloud sync error: ${channel.error}. Enqueued for offline retry.`);
     }
 
     channel.timestamp = new Date().toISOString();
@@ -279,11 +314,11 @@ export class DispatchEngine {
     channel.attemptCount++;
     this.saveState();
 
-    // Simulated institutional dispatch handshake (500ms)
     await new Promise((r) => setTimeout(r, 600));
 
     channel.status = "SUCCESS";
     channel.timestamp = new Date().toISOString();
+    sosAuditLogger.log("SOS_LIFECYCLE", "SUCCESS", "112 ERSS & Police emergency telemetry dispatched (Simulated Institutional Gateway).");
     this.updateAggregates();
     this.saveState();
   }
@@ -303,6 +338,7 @@ export class DispatchEngine {
 
     channel.status = "SUCCESS";
     channel.timestamp = new Date().toISOString();
+    sosAuditLogger.log("SOS_LIFECYCLE", "SUCCESS", "181 Women Helpline national distress telemetry dispatched.");
     this.updateAggregates();
     this.saveState();
   }
@@ -323,7 +359,6 @@ export class DispatchEngine {
     this.saveState();
 
     try {
-      // Mock volunteer broadcast record
       const mockAlert = {
         id: sosId,
         location: { lat, lng },
@@ -333,6 +368,7 @@ export class DispatchEngine {
       localStorage.setItem("rakshika_mock_active_alert", JSON.stringify(mockAlert));
 
       channel.status = "SUCCESS";
+      sosAuditLogger.log("SOS_LIFECYCLE", "SUCCESS", `Volunteer mesh broadcast registered locally within 2.5km perimeter.`);
     } catch {
       channel.status = "FAILED";
     }
@@ -368,9 +404,11 @@ export class DispatchEngine {
       });
 
       channel.status = "SUCCESS";
+      sosAuditLogger.log("BLE_AIRTAG_MESH", "SUCCESS", `Encrypted AirTag BLE beacon broadcasting initiated for incident ${incidentId}.`);
     } catch (err: any) {
       channel.status = "FAILED";
       channel.error = err?.message || "BLE error";
+      sosAuditLogger.log("BLE_AIRTAG_MESH", "WARN", `BLE mesh beacon error: ${channel.error}`);
     }
 
     channel.timestamp = new Date().toISOString();
@@ -390,6 +428,7 @@ export class DispatchEngine {
       if (ch.status === "FAILED") {
         ch.status = "RETRYING";
         this.saveState();
+        sosAuditLogger.log("SOS_LIFECYCLE", "INFO", `Auto-retrying channel ${ch.channel} now that network is online...`);
 
         if (ch.channel === "FIREBASE_SYNC") {
           await this.dispatchFirebaseSync(incidentId);
