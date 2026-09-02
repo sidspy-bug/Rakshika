@@ -71,8 +71,11 @@
 
 ### 2.9 Android Hardware & Gesture Back Button Subsystem (`useHardwareBackButton.ts`, `@capacitor/app`)
 - **App Exit Prevention:** Intercepts Android hardware back button and swipe navigation gestures via `@capacitor/app`.
-- **Safe Screen Unwinding:** When canceling SOS or pressing back from `/sos`, `/history`, or `/fake-call`, automatically routes cleanly to `/` (Home) instead of calling `finish()` on Android's `BridgeActivity`.
 - **Double-Tap to Exit Guard:** When on the Home screen or Volunteer Dashboard, requires a double-tap within 2 seconds to exit, preventing accidental exits.
+
+### 2.10 AirTag BLE Mesh Diagnostic Hub & Live Simulator (`SosScreen.tsx`, `airTagMeshRelayService.ts`)
+- **Interactive Mesh Diagnostics:** On-screen telemetry displaying BLE advertising status, background passive scanner state, local store-and-forward relay buffer packet count, and total relayed beacon count.
+- **1-Tap Live Bystander Relay Simulation:** Provides a direct interactive button on `SosScreen.tsx` (`BLE Mesh`) to simulate a passing bystander's device intercepting an offline 25-byte distress beacon, caching it in the relay buffer, stepping into network coverage, and forwarding it to the emergency contacts with instant blackbox log verification.
 
 ---
 

@@ -81,8 +81,33 @@ export function SosScreen() {
   const [showJudgeConfigModal, setShowJudgeConfigModal] = useState(false);
   const [showAnchorModal, setShowAnchorModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
+  const [showMeshModal, setShowMeshModal] = useState(false);
+  const [isSimulatingMesh, setIsSimulatingMesh] = useState(false);
   const [logFilter, setLogFilter] = useState<string>("ALL");
   const [auditLogs, setAuditLogs] = useState<SosAuditLogEntry[]>(() => sosAuditLogger.getLogs());
+
+  const handleSimulateMeshRelay = async () => {
+    setIsSimulatingMesh(true);
+    try {
+      const lat = 28.45838;
+      const lng = 77.48905;
+      const res = await airTagMeshRelayService.simulateDriveByPass(
+        incident?.id || "sos_offline_demo",
+        lat,
+        lng
+      );
+      sosAuditLogger.log(
+        "BLE_AIRTAG_MESH",
+        "SUCCESS",
+        `Simulated peer interception: Packet #${res.packetId.slice(0, 8)} intercepted 45m away, cached in relay buffer, and forwarded to cloud gateway for emergency contacts.`
+      );
+      showToastMsg("Bystander intercepted & relayed your SOS beacon!");
+    } catch (err: any) {
+      sosAuditLogger.log("BLE_AIRTAG_MESH", "WARN", `Mesh simulation note: ${err?.message || err}`);
+    } finally {
+      setIsSimulatingMesh(false);
+    }
+  };
 
   const [anchorMinutes, setAnchorMinutes] = useState(15);
   const [anchorDestination, setAnchorDestination] = useState("");
@@ -460,6 +485,14 @@ export function SosScreen() {
                 <Terminal className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Blackbox Logs</span>
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              </button>
+
+              <button
+                onClick={() => setShowMeshModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 transition-all"
+              >
+                <Radio className="w-3.5 h-3.5 text-purple-400" />
+                <span>BLE Mesh</span>
               </button>
 
               <button
@@ -1089,6 +1122,90 @@ export function SosScreen() {
                   </Button>
                 </div>
               )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── AIRTAG BLE MESH DIAGNOSTIC & SIMULATOR MODAL ────────────────── */}
+      <AnimatePresence>
+        {showMeshModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[250] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <div className="bg-gray-900 border border-purple-500/30 rounded-3xl p-6 w-full max-w-md text-white shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Radio className="w-5 h-5 text-purple-400 animate-pulse" />
+                  <div>
+                    <h3 className="font-bold text-base">AirTag BLE Mesh Relay Hub</h3>
+                    <p className="text-[10px] text-gray-400">
+                      Decentralized Store-and-Forward Emergency Bridge
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowMeshModal(false)}
+                  className="text-gray-400 hover:text-white p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Node Telemetry Grid */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold block">BLE Advertising</span>
+                  <span className="font-black text-purple-300">
+                    {meshStats.isAdvertising ? "BROADCASTING" : "STANDBY"}
+                  </span>
+                </div>
+                <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold block">Mesh Scanner</span>
+                  <span className="font-black text-green-400">
+                    {meshStats.isScanning ? "PASSIVE SCAN (ACTIVE)" : "IDLE"}
+                  </span>
+                </div>
+                <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold block">Relay Buffer</span>
+                  <span className="font-black text-cyan-300">
+                    {meshStats.bufferedPacketsCount} Packets
+                  </span>
+                </div>
+                <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold block">Total Relayed</span>
+                  <span className="font-black text-amber-300">
+                    {meshStats.totalPacketsRelayed} Beacons
+                  </span>
+                </div>
+              </div>
+
+              {/* Explanation Box */}
+              <div className="p-3.5 bg-purple-950/40 border border-purple-500/30 rounded-2xl text-xs space-y-1.5 text-purple-200">
+                <p className="font-bold text-white flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-purple-400" /> How it protects you without network:
+                </p>
+                <p className="text-[11px] text-gray-300 leading-relaxed">
+                  When you have ZERO signal, your phone broadcasts an encrypted BLE beacon. Passing bystander phones silently catch it, carry it outside the dead-zone, and forward your SOS to your emergency contacts!
+                </p>
+              </div>
+
+              {/* Live Simulation Button */}
+              <Button
+                onClick={handleSimulateMeshRelay}
+                disabled={isSimulatingMesh}
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm py-3.5 rounded-2xl shadow-lg shadow-purple-900/50 flex items-center justify-center gap-2"
+              >
+                <Radio className="w-4 h-4 animate-spin" />
+                <span>
+                  {isSimulatingMesh
+                    ? "Simulating Bystander Interception..."
+                    : "⚡ Simulate Bystander Peer Interception & Relay"}
+                </span>
+              </Button>
             </div>
           </motion.div>
         )}
