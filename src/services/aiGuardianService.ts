@@ -5,6 +5,7 @@ export type MessageAction = {
   type: "sos" | "call_police" | "call_women_helpline" | "fake_call" | "route_police";
   label: string;
   phone?: string;
+  dest?: { lat: number; lng: number; name: string };
 };
 
 export type AiMessage = {
@@ -57,9 +58,9 @@ MANDATORY WOMEN SAFETY PINCH-SITUATION PROTOCOL:
 3. DIRECT POI GUIDANCE: Reference her nearest verified police station, hospital, or volunteer from the live list below with exact distance.
 4. THREAT ACTION (If she mentions being followed, dark street, harassment, cab threat, or danger):
    - Step 1: Immediate physical movement (e.g. "Walk directly into nearest lit shop/cafe", "Change direction to verify intent").
-   - Step 2: Communication/Deterrence (e.g. "Trigger SOS button immediately", "Call 112 or 1091", "Start Fake Call").
+   - Step 2: Communication/Deterrence (e.g. "Trigger SOS button immediately", "Call 112 or 181", "Start Fake Call").
    - Step 3: Head to nearest police/safe haven listed below.
-5. NATIONAL HELPLINES TO REMEMBER: National Emergency PCR (112), Women Helpline (1091), Medical (102 / 108).
+5. NATIONAL HELPLINES TO REMEMBER: National Emergency PCR (112), Women Helpline (181), NCW 24x7 (14490), Medical (102 / 108).
 
 LIVE GEOLOCATION & SURROUNDINGS DATA:
 - Address: ${currentAddress}
@@ -95,8 +96,16 @@ export function generateLocalEmergencyResponse(
   const defaultActions: MessageAction[] = [
     { type: "sos", label: "🚨 Trigger SOS" },
     { type: "call_police", label: "📞 Call 112 Police", phone: "112" },
-    { type: "call_women_helpline", label: "📞 Women Helpline 1091", phone: "1091" },
+    { type: "call_women_helpline", label: "📞 Women Helpline 181", phone: "181" },
   ];
+
+  if (nearestPolice) {
+    defaultActions.unshift({
+      type: "route_police",
+      label: `🗺️ Auto-Route to ${nearestPolice.name.slice(0, 18)}...`,
+      dest: { lat: nearestPolice.lat, lng: nearestPolice.lng, name: nearestPolice.name },
+    });
+  }
 
   // 1. Being followed / Stalking / Dark Street / Stranded Threat
   if (
@@ -124,7 +133,7 @@ export function generateLocalEmergencyResponse(
         { type: "sos", label: "🚨 Press SOS Now" },
         { type: "fake_call", label: "📱 Trigger Fake Call" },
         { type: "call_police", label: "📞 Call 112 PCR", phone: "112" },
-        { type: "call_women_helpline", label: "📞 Call 1091 Women Cell", phone: "1091" },
+        { type: "call_women_helpline", label: "📞 Call 181 Women Helpline", phone: "181" },
       ],
     };
   }
@@ -217,7 +226,7 @@ export function generateLocalEmergencyResponse(
 
 I am actively monitoring your safety grid. If you feel uncomfortable or sense danger:
 - **Press SOS** to notify your trusted contacts and local responders instantly.
-- **Dial 112** for emergency police dispatch or **1091** for Women's Helpline.
+- **Dial 112** for emergency police dispatch or **181** for National Women's Helpline (24/7).
 - Head toward lit public spaces (petrol pumps, 24/7 stores, metro stations).`,
     actions: defaultActions,
   };

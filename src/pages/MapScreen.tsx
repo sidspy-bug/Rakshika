@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Search,
   Shield,
@@ -83,6 +84,68 @@ export function MapScreen() {
     startNavigation,
     stopNavigation,
   } = useNavigation({ userLocation, helpCenters, incidents });
+
+  const routerLocation = useLocation();
+
+  // Restore persisted map state on mount if returning to tab
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("rakshika_active_map_state");
+      if (saved && waypoints.length === 0 && !selectedPoi) {
+        const parsed = JSON.parse(saved);
+        if (parsed.waypoints && parsed.waypoints.length > 0) {
+          parsed.waypoints.forEach((wp: Waypoint) => addWaypoint(wp));
+        }
+        if (parsed.selectedPoi) {
+          setSelectedPoi(parsed.selectedPoi);
+        }
+        if (parsed.searchQuery) {
+          setSearchQuery(parsed.searchQuery);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to restore map state:", err);
+    }
+  }, []);
+
+  // Persist active map state when waypoints or selectedPoi change
+  useEffect(() => {
+    if (waypoints.length > 0 || selectedPoi) {
+      try {
+        localStorage.setItem(
+          "rakshika_active_map_state",
+          JSON.stringify({ waypoints, selectedPoi, searchQuery })
+        );
+      } catch {}
+    } else {
+      try {
+        localStorage.removeItem("rakshika_active_map_state");
+      } catch {}
+    }
+  }, [waypoints, selectedPoi, searchQuery]);
+
+  // Auto-route to destination when redirected from AI Agent
+  useEffect(() => {
+    const navState = routerLocation.state as { destination?: { lat: number; lng: number; name: string } } | null;
+    if (navState?.destination) {
+      clearWaypoints();
+      addWaypoint({
+        name: navState.destination.name,
+        lat: navState.destination.lat,
+        lng: navState.destination.lng,
+      });
+      setSearchQuery(navState.destination.name);
+      setSelectedPoi({
+        id: `ai-target-${Date.now()}`,
+        name: navState.destination.name,
+        type: "police",
+        lat: navState.destination.lat,
+        lng: navState.destination.lng,
+        address: navState.destination.name,
+        distance: calculateDistance(userLocation, navState.destination),
+      });
+    }
+  }, [routerLocation.state]);
 
   // Background telemetry tracking: Send updates when userLocation changes
   useEffect(() => {

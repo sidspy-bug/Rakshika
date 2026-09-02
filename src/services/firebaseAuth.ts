@@ -1,5 +1,5 @@
 import { auth, db } from "./firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, deleteUser } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, deleteUser, sendPasswordResetEmail } from "firebase/auth";
 import { doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { api } from "./api";
 
@@ -41,6 +41,17 @@ export const firebaseAuthService = {
     }
     
     return idToken;
+  },
+
+  /**
+   * Sends a password reset email
+   */
+  async resetPassword(email: string): Promise<void> {
+    if (IS_MOCK) {
+      console.warn("Running in Hybrid Simulation mode. Password reset mocked.");
+      return;
+    }
+    await sendPasswordResetEmail(auth, email);
   },
 
   /**

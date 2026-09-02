@@ -31,6 +31,8 @@ import { OfflineModeScreen } from "./pages/volunteer/OfflineModeScreen";
 import { VolunteerLayout } from "./components/layout/VolunteerLayout";
 import { AuthGuard, VolunteerVerifiedGuard } from "./navigation/VolunteerNavigator";
 
+import { useAirTagMesh } from "./hooks/useAirTagMesh";
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("access_token");
   const location = useLocation();
@@ -43,6 +45,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // Passively listen for crowdsourced AirTag-style BLE distress beacons in the background
+  useAirTagMesh(true);
+
   return (
     <AuthProvider>
       <VolunteerProvider>

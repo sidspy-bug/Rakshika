@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, AlertTriangle } from "lucide-react";
 import { InteractiveMap } from "../../components/map/InteractiveMap";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { ErrorState } from "../../components/ui/ErrorState";
@@ -29,6 +29,7 @@ export function ActiveResponseScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showResolutionDialog, setShowResolutionDialog] = useState(false);
+  const [deadManWarning, setDeadManWarning] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -54,9 +55,42 @@ export function ActiveResponseScreen() {
     return () => { isMounted = false; };
   }, [id]);
 
-  const { currentLocation, formattedDistance } = useDistanceCalculation(
+  const { currentLocation, formattedDistance, distance } = useDistanceCalculation(
     alert?.location
   );
+
+  // ─── Dead-Man's Switch (Inactivity Detection) ─────────────
+  useEffect(() => {
+    if (responseState !== "ACCEPTED" && responseState !== "RESPONDING") {
+      setDeadManWarning(false);
+      return;
+    }
+
+    let initialDist = distance;
+    let warningTimer: NodeJS.Timeout;
+    let escalationTimer: NodeJS.Timeout;
+
+    // After 60 seconds of inactivity, warn volunteer
+    warningTimer = setTimeout(() => {
+      // Check if distance has not decreased by at least 20m
+      if (initialDist !== null && distance !== null && initialDist - distance < 20) {
+        setDeadManWarning(true);
+        console.warn("[DeadManSwitch] ⚠️ No movement detected toward victim. Warning volunteer...");
+
+        // After 15 more seconds without movement, auto-escalate
+        escalationTimer = setTimeout(async () => {
+          console.warn("[DeadManSwitch] 🚨 Responder inactive. Auto-escalating incident to institutional services...");
+          setDeadManWarning(false);
+          await handleUpdateState("ESCALATED");
+        }, 15000);
+      }
+    }, 60000);
+
+    return () => {
+      clearTimeout(warningTimer);
+      clearTimeout(escalationTimer);
+    };
+  }, [responseState, distance]);
 
   const handleUpdateState = async (newState: ResponseState) => {
     if (!alert) return;
@@ -124,6 +158,22 @@ export function ActiveResponseScreen() {
             <p className="text-lg font-black text-gray-900">{formattedDistance || "--"}</p>
           </div>
         </div>
+
+        {/* Dead-Man's Switch Warning Toast */}
+        {deadManWarning && (
+          <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-xs font-bold animate-pulse">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              <span>No movement detected toward victim! Auto-escalating in 15s...</span>
+            </div>
+            <button
+              onClick={() => setDeadManWarning(false)}
+              className="bg-white/20 px-2 py-0.5 rounded text-[10px] hover:bg-white/30"
+            >
+              I am moving
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Map Background */}

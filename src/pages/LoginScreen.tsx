@@ -11,11 +11,12 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-
+  const [successMsg, setSuccessMsg] = useState("");
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg("");
+    setSuccessMsg("");
     
     try {
       await firebaseAuthService.login(email, password);
@@ -27,6 +28,29 @@ export function LoginScreen() {
       setIsLoading(false);
     }
   };
+
+  const handleResetPassword = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setErrorMsg("Please enter your email address to reset your password.");
+      setSuccessMsg("");
+      return;
+    }
+    setIsLoading(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+    
+    try {
+      await firebaseAuthService.resetPassword(email);
+      setSuccessMsg("Password reset email sent! Check your inbox.");
+    } catch (err: any) {
+      console.error("Reset Password Error:", err);
+      setErrorMsg(err.message || "Failed to send reset email.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center px-6 py-12 relative overflow-hidden">
@@ -46,6 +70,12 @@ export function LoginScreen() {
           {errorMsg && (
             <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-xl text-sm font-medium">
               {errorMsg}
+            </div>
+          )}
+          
+          {successMsg && (
+            <div className="p-3 bg-green-50 text-green-600 border border-green-100 rounded-xl text-sm font-medium">
+              {successMsg}
             </div>
           )}
 
@@ -70,7 +100,7 @@ export function LoginScreen() {
               required 
             />
             <div className="flex justify-end mt-2">
-              <a href="#" className="text-sm font-semibold text-[#D32F2F] hover:underline">Forgot password?</a>
+              <a href="#" onClick={handleResetPassword} className="text-sm font-semibold text-[#D32F2F] hover:underline">Forgot password?</a>
             </div>
           </div>
 

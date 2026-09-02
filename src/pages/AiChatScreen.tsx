@@ -1,31 +1,55 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Shield, Loader2, Sparkles, MapPin, Phone, AlertTriangle, PhoneCall, Navigation } from "lucide-react";
+import { Send, Shield, Loader2, Sparkles, MapPin, Phone, AlertTriangle, PhoneCall, Navigation, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useUserLocation } from "../hooks/useUserLocation";
 import { useGisData } from "../hooks/useGisData";
 import { reverseGeocode } from "../services/gisService";
 import { queryAiGuardian, type AiMessage, type MessageAction } from "../services/aiGuardianService";
 
+const CHAT_STORAGE_KEY = "rakshika_ai_chat_messages";
+const ADDRESS_STORAGE_KEY = "rakshika_user_last_address";
+
+const INITIAL_WELCOME: AiMessage = {
+  id: "1",
+  role: "ai",
+  content: "Hello sister. I am Rakshika, your personal safety guardian. I am actively monitoring your location grid to keep you protected 24/7. Are you feeling safe right now or do you need emergency guidance?",
+  actions: [
+    { type: "sos", label: "🚨 Press SOS" },
+    { type: "call_police", label: "📞 Call 112", phone: "112" },
+    { type: "call_women_helpline", label: "📞 181 Women Helpline", phone: "181" },
+  ],
+};
+
+function getStoredMessages(): AiMessage[] {
+  try {
+    const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (err) {
+    console.warn("Failed to load chat history:", err);
+  }
+  return [INITIAL_WELCOME];
+}
+
+function getStoredAddress(): string {
+  try {
+    return localStorage.getItem(ADDRESS_STORAGE_KEY) || "Locating your current address...";
+  } catch {
+    return "Locating your current address...";
+  }
+}
+
 export function AiChatScreen() {
   const navigate = useNavigate();
   const { location: userLocation } = useUserLocation();
   const { helpCenters, incidents } = useGisData({ userLocation, destination: null });
 
-  const [messages, setMessages] = useState<AiMessage[]>([
-    {
-      id: "1",
-      role: "ai",
-      content: "Hello sister. I am Rakshika, your personal safety guardian. I am actively monitoring your location grid to keep you protected 24/7. Are you feeling safe right now or do you need emergency guidance?",
-      actions: [
-        { type: "sos", label: "🚨 Press SOS" },
-        { type: "call_police", label: "📞 Call 112", phone: "112" },
-        { type: "call_women_helpline", label: "📞 1091 Women Cell", phone: "1091" },
-      ],
-    },
-  ]);
+  const [messages, setMessages] = useState<AiMessage[]>(getStoredMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [currentAddress, setCurrentAddress] = useState<string>("Locating your current address...");
+  const [currentAddress, setCurrentAddress] = useState<string>(getStoredAddress);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -36,14 +60,35 @@ export function AiChatScreen() {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Reverse geocode user location on load/change
+  // Save chat history on message change
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    } catch (err) {
+      console.warn("Failed to save chat history:", err);
+    }
+  }, [messages]);
+
+  // Reverse geocode user location on load/change & store address
   useEffect(() => {
     if (userLocation) {
       reverseGeocode(userLocation).then((addr) => {
-        setCurrentAddress(addr);
+        if (addr) {
+          setCurrentAddress(addr);
+          try {
+            localStorage.setItem(ADDRESS_STORAGE_KEY, addr);
+          } catch {}
+        }
       });
     }
   }, [userLocation]);
+
+  const handleClearChat = () => {
+    setMessages([INITIAL_WELCOME]);
+    try {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch {}
+  };
 
   const handleSend = async (overrideText?: string) => {
     const userTextInput = (overrideText || input).trim();
@@ -91,7 +136,11 @@ export function AiChatScreen() {
     } else if (action.type === "fake_call") {
       navigate("/fake-call");
     } else if (action.type === "route_police") {
-      navigate("/map");
+      if (action.dest) {
+        navigate("/map", { state: { destination: action.dest } });
+      } else {
+        navigate("/map");
+      }
     } else if (action.phone) {
       window.location.href = `tel:${action.phone}`;
     }
@@ -109,24 +158,32 @@ export function AiChatScreen() {
     <div className="flex flex-col h-full bg-[#0d0d0e] relative text-white font-sans overflow-hidden">
       {/* Top Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-black/90 backdrop-blur-xl sticky top-0 z-20 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-2xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
             <Shield className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-sm text-white">Rakshika AI Guardian</h2>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold border border-emerald-500/30 flex items-center gap-1">
+              <h2 className="font-bold text-sm text-white truncate">Rakshika AI Guardian</h2>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold border border-emerald-500/30 flex items-center gap-1 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
                 ACTIVE
               </span>
             </div>
             <p className="text-[11px] text-gray-400 flex items-center gap-1 line-clamp-1 mt-0.5">
               <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
-              <span>{currentAddress}</span>
+              <span className="truncate">{currentAddress}</span>
             </p>
           </div>
         </div>
+
+        <button
+          onClick={handleClearChat}
+          className="p-2 text-gray-400 hover:text-rose-400 rounded-xl hover:bg-gray-800 transition-colors shrink-0"
+          title="Clear Chat History"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </header>
 
       {/* Chat Area */}

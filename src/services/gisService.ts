@@ -23,7 +23,7 @@ const headers = {
  */
 const COMMON_LANDMARKS: { name: string; latOffset: number; lngOffset: number; type: string }[] = [
   { name: "Police Headquarters & Rapid Response Hub", latOffset: 0.0035, lngOffset: 0.0028, type: "police" },
-  { name: "Mahila Police Station (Women Help Desk 1091)", latOffset: -0.0022, lngOffset: 0.0041, type: "women_police" },
+  { name: "Mahila Police Station (Women Help Desk 181)", latOffset: -0.0022, lngOffset: 0.0041, type: "women_police" },
   { name: "City Civil Hospital & 24/7 Trauma Emergency", latOffset: -0.0048, lngOffset: -0.0035, type: "hospital" },
   { name: "24/7 Apollo Pharmacy & Emergency Medicals", latOffset: 0.0018, lngOffset: -0.0025, type: "pharmacy_24h" },
   { name: "Metro / Transit Central Hub (CCTV Monitored)", latOffset: 0.0052, lngOffset: -0.0012, type: "transit_station" },
@@ -328,13 +328,13 @@ function getFallbackHelpCenters(center: Coords): HelpCenter[] {
       distance: 310,
     },
     {
-      id: "safe-mahila-1091",
-      name: "Mahila Police Help Desk (Women Safety Cell)",
+      id: "safe-mahila-181",
+      name: "Mahila Police Help Desk (Women Safety Cell 181)",
       type: "women_police",
       lat: center.lat - 0.0031,
       lng: center.lng + 0.0029,
       address: "Sector Police Station, Dedicated Women Officers",
-      phone: "1091",
+      phone: "181",
       distance: 420,
     },
     {
