@@ -204,7 +204,9 @@ export class EvidenceChunkStreamer {
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64Data = (reader.result as string).split(",")[1];
+        const resultStr = (reader.result as string) || "";
+        const markerIndex = resultStr.indexOf(";base64,");
+        const base64Data = markerIndex !== -1 ? resultStr.substring(markerIndex + 8) : "";
         if (base64Data) {
           await Filesystem.writeFile({
             path: `Rakshika/evidence/${this.incidentId}/chunk_${index}.webm`,
