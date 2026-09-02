@@ -68,6 +68,11 @@
 - **Global Sticky Active SOS Indicator (`AppLayout.tsx`):** Displays a persistent pulsing red top banner across all app screens whenever an SOS is active, showing incident ID and 1-tap **"Stop SOS"** and **"Open SOS"** buttons.
 - **Storage Cleanup Utility (`EvidenceVaultScreen.tsx`):** Provides 1-tap "Free Space" and "Delete Evidence" buttons to reclaim device storage.
 
+### 2.9 Android Hardware & Gesture Back Button Subsystem (`useHardwareBackButton.ts`, `@capacitor/app`)
+- **App Exit Prevention:** Intercepts Android hardware back button and swipe navigation gestures via `@capacitor/app`.
+- **Safe Screen Unwinding:** When canceling SOS or pressing back from `/sos`, `/history`, or `/fake-call`, automatically routes cleanly to `/` (Home) instead of calling `finish()` on Android's `BridgeActivity`.
+- **Double-Tap to Exit Guard:** When on the Home screen or Volunteer Dashboard, requires a double-tap within 2 seconds to exit, preventing accidental exits.
+
 ---
 
 ## 3. Master Reference File

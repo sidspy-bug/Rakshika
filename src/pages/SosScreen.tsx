@@ -21,6 +21,7 @@ import {
   Copy,
   Download,
   Terminal,
+  ChevronLeft,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
@@ -295,7 +296,7 @@ export function SosScreen() {
       setIsRecording(false);
     }
 
-    navigate(-1);
+    navigate("/", { replace: true });
   };
 
   // Secret triple-tap gesture to exit covert blackout
@@ -430,8 +431,16 @@ export function SosScreen() {
             exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
             className="flex flex-col items-center justify-between w-full h-full p-6 pt-10 pb-8"
           >
-            {/* Top Bar: Anchor, Judge Contacts & Blackbox Logs */}
+            {/* Top Bar: Back, Anchor, Judge Contacts & Blackbox Logs */}
             <div className="w-full flex flex-wrap items-center justify-between gap-2 max-w-md px-1">
+              <button
+                onClick={() => navigate("/", { replace: true })}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+                title="Go back to Home"
+              >
+                <ChevronLeft className="w-4 h-4 text-white" />
+              </button>
+
               <button
                 onClick={() => setShowAnchorModal(true)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${

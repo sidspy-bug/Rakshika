@@ -33,6 +33,7 @@ import { VolunteerLayout } from "./components/layout/VolunteerLayout";
 import { AuthGuard, VolunteerVerifiedGuard } from "./navigation/VolunteerNavigator";
 
 import { useAirTagMesh } from "./hooks/useAirTagMesh";
+import { useHardwareBackButton } from "./hooks/useHardwareBackButton";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("access_token");
@@ -45,6 +46,128 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AppRoutes() {
+  // Intercept Android hardware back button and gestures to prevent accidental app exits
+  useHardwareBackButton();
+
+  return (
+    <Routes>
+      {/* Splash & Role Selection */}
+      <Route path="/splash" element={<SplashScreen />} />
+      <Route path="/role-select" element={<RoleSelectionScreen />} />
+
+      {/* Auth Routes (User side) */}
+      <Route path="/welcome" element={<LandingPage />} />
+      <Route path="/login" element={<LoginScreen />} />
+      <Route path="/register" element={<RegisterScreen />} />
+
+      {/* Volunteer Auth Routes */}
+      <Route path="/volunteer/intro" element={<VolunteerIntroScreen />} />
+      <Route path="/volunteer/register" element={<VolunteerRegistrationScreen />} />
+      <Route path="/volunteer/login" element={<VolunteerLoginScreen />} />
+      
+      {/* Volunteer Setup / Verification Routes (Requires auth, but maybe not verified yet) */}
+      <Route
+        path="/volunteer/verification-pending"
+        element={
+          <AuthGuard>
+            <VerificationPendingScreen />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/volunteer/verification"
+        element={
+          <AuthGuard>
+            <VolunteerVerificationScreen />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/volunteer/safety"
+        element={
+          <AuthGuard>
+            <VolunteerSafetyScreen />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/volunteer/permissions"
+        element={
+          <AuthGuard>
+            <VolunteerPermissionsScreen />
+          </AuthGuard>
+        }
+      />
+
+      {/* Volunteer Dashboard & Core Features (requires verification) */}
+      <Route
+        element={
+          <VolunteerVerifiedGuard>
+            <VolunteerLayout />
+          </VolunteerVerifiedGuard>
+        }
+      >
+        <Route path="/volunteer/dashboard" element={<VolunteerDashboardScreen />} />
+        <Route path="/volunteer/alerts" element={<AlertsScreen />} />
+        <Route path="/volunteer/history" element={<AlertsScreen />} />
+        <Route path="/volunteer/profile" element={<VolunteerProfileScreen />} />
+      </Route>
+
+      {/* Volunteer Full-Screen Routes (no bottom nav) */}
+      <Route
+        path="/volunteer/alert/:id"
+        element={
+          <VolunteerVerifiedGuard>
+            <EmergencyAlertScreen />
+          </VolunteerVerifiedGuard>
+        }
+      />
+      <Route
+        path="/volunteer/map/:id"
+        element={
+          <VolunteerVerifiedGuard>
+            <EmergencyMapScreen />
+          </VolunteerVerifiedGuard>
+        }
+      />
+      <Route
+        path="/volunteer/response/:id"
+        element={
+          <VolunteerVerifiedGuard>
+            <ActiveResponseScreen />
+          </VolunteerVerifiedGuard>
+        }
+      />
+      <Route
+        path="/volunteer/offline"
+        element={
+          <VolunteerVerifiedGuard>
+            <OfflineModeScreen />
+          </VolunteerVerifiedGuard>
+        }
+      />
+
+      {/* Main App Routes with Bottom Nav (User side) */}
+      <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+        <Route index element={<Home />} />
+        <Route path="map" element={<MapScreen />} />
+        <Route path="ai" element={<AiChatScreen />} />
+        <Route path="community" element={<CommunityScreen />} />
+        <Route path="profile" element={<ProfileScreen />} />
+      </Route>
+      
+      {/* Full screen routes without bottom navigation */}
+      <Route path="/sos" element={<ProtectedRoute><SosScreen /></ProtectedRoute>} />
+      <Route path="/fake-call" element={<ProtectedRoute><FakeCallScreen /></ProtectedRoute>} />
+      <Route path="/history" element={<ProtectedRoute><EvidenceVaultScreen /></ProtectedRoute>} />
+      <Route path="/history/:id" element={<ProtectedRoute><EvidenceVaultScreen /></ProtectedRoute>} />
+      
+      <Route path="*" element={<Navigate to="/splash" replace />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   // Passively listen for crowdsourced AirTag-style BLE distress beacons in the background
   useAirTagMesh(true);
@@ -53,120 +176,7 @@ export default function App() {
     <AuthProvider>
       <VolunteerProvider>
         <BrowserRouter>
-          <Routes>
-            {/* Splash & Role Selection */}
-            <Route path="/splash" element={<SplashScreen />} />
-            <Route path="/role-select" element={<RoleSelectionScreen />} />
-
-            {/* Auth Routes (User side) */}
-            <Route path="/welcome" element={<LandingPage />} />
-            <Route path="/login" element={<LoginScreen />} />
-            <Route path="/register" element={<RegisterScreen />} />
-
-            {/* Volunteer Auth Routes */}
-            <Route path="/volunteer/intro" element={<VolunteerIntroScreen />} />
-            <Route path="/volunteer/register" element={<VolunteerRegistrationScreen />} />
-            <Route path="/volunteer/login" element={<VolunteerLoginScreen />} />
-            
-            {/* Volunteer Setup / Verification Routes (Requires auth, but maybe not verified yet) */}
-            <Route
-              path="/volunteer/verification-pending"
-              element={
-                <AuthGuard>
-                  <VerificationPendingScreen />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/volunteer/verification"
-              element={
-                <AuthGuard>
-                  <VolunteerVerificationScreen />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/volunteer/safety"
-              element={
-                <AuthGuard>
-                  <VolunteerSafetyScreen />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/volunteer/permissions"
-              element={
-                <AuthGuard>
-                  <VolunteerPermissionsScreen />
-                </AuthGuard>
-              }
-            />
-
-            {/* Volunteer Dashboard & Core Features (requires verification) */}
-            <Route
-              element={
-                <VolunteerVerifiedGuard>
-                  <VolunteerLayout />
-                </VolunteerVerifiedGuard>
-              }
-            >
-              <Route path="/volunteer/dashboard" element={<VolunteerDashboardScreen />} />
-              <Route path="/volunteer/alerts" element={<AlertsScreen />} />
-              <Route path="/volunteer/history" element={<AlertsScreen />} />
-              <Route path="/volunteer/profile" element={<VolunteerProfileScreen />} />
-            </Route>
-
-            {/* Volunteer Full-Screen Routes (no bottom nav) */}
-            <Route
-              path="/volunteer/alert/:id"
-              element={
-                <VolunteerVerifiedGuard>
-                  <EmergencyAlertScreen />
-                </VolunteerVerifiedGuard>
-              }
-            />
-            <Route
-              path="/volunteer/map/:id"
-              element={
-                <VolunteerVerifiedGuard>
-                  <EmergencyMapScreen />
-                </VolunteerVerifiedGuard>
-              }
-            />
-            <Route
-              path="/volunteer/response/:id"
-              element={
-                <VolunteerVerifiedGuard>
-                  <ActiveResponseScreen />
-                </VolunteerVerifiedGuard>
-              }
-            />
-            <Route
-              path="/volunteer/offline"
-              element={
-                <VolunteerVerifiedGuard>
-                  <OfflineModeScreen />
-                </VolunteerVerifiedGuard>
-              }
-            />
-
-            {/* Main App Routes with Bottom Nav (User side) */}
-            <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route index element={<Home />} />
-              <Route path="map" element={<MapScreen />} />
-              <Route path="ai" element={<AiChatScreen />} />
-              <Route path="community" element={<CommunityScreen />} />
-              <Route path="profile" element={<ProfileScreen />} />
-            </Route>
-            
-            {/* Full screen routes without bottom navigation */}
-            <Route path="/sos" element={<ProtectedRoute><SosScreen /></ProtectedRoute>} />
-            <Route path="/fake-call" element={<ProtectedRoute><FakeCallScreen /></ProtectedRoute>} />
-            <Route path="/history" element={<ProtectedRoute><EvidenceVaultScreen /></ProtectedRoute>} />
-            <Route path="/history/:id" element={<ProtectedRoute><EvidenceVaultScreen /></ProtectedRoute>} />
-            
-            <Route path="*" element={<Navigate to="/splash" replace />} />
-          </Routes>
+          <AppRoutes />
         </BrowserRouter>
       </VolunteerProvider>
     </AuthProvider>
