@@ -24,6 +24,7 @@ import {
   type IncidentDossierData,
 } from "../services/evidencePlaybackService";
 import { getSosHistory, type SosIncident } from "../services/sosService";
+import { cloudAuthService } from "../services/cloudAuthService";
 
 export function EvidenceVaultScreen() {
   const navigate = useNavigate();
@@ -276,7 +277,25 @@ export function EvidenceVaultScreen() {
                     <h3 className="text-lg font-black text-white font-mono">{dossier.incident.id}</h3>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {dossier.incident.evidenceUrl ? (
+                      <a
+                        href={dossier.incident.evidenceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-bold px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 flex items-center gap-1.5 transition-all"
+                        title="Open master evidence video uploaded to Firebase Cloud Storage"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Cloud Video Available</span>
+                      </a>
+                    ) : (
+                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5">
+                        <HardDrive className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{cloudAuthService.isCloudSyncEnabled() ? "On-Device Vault" : "Demo Mode Vault"}</span>
+                      </span>
+                    )}
+
                     <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
                       <FileCheck className="w-4 h-4 text-emerald-400" /> Tamper-Evident SHA-256
                     </span>

@@ -16,6 +16,8 @@ import { registerPlugin } from "@capacitor/core";
 import { syncSosToFirebase, type SosIncident } from "./sosService";
 import { airTagMeshRelayService } from "./airTagMeshRelayService";
 import { sosAuditLogger } from "./sosAuditLogger";
+import { cloudAuthService } from "./cloudAuthService";
+import { cloudSyncManager } from "./cloudSyncManager";
 
 const SmsPlugin = registerPlugin<any>("SmsPlugin");
 
@@ -279,6 +281,21 @@ export class DispatchEngine {
     channel.attemptCount++;
     this.saveState();
 
+    // If in Demo Mode or unauthenticated, secure on-device without firing failing network calls
+    if (!cloudAuthService.isCloudSyncEnabled()) {
+      channel.displayName = "On-Device Secure Vault (Demo Mode)";
+      channel.status = "SUCCESS";
+      channel.timestamp = new Date().toISOString();
+      sosAuditLogger.log(
+        "FIREBASE_CLOUD",
+        "INFO",
+        `Demo Mode: SOS ${incidentId} safely recorded in on-device disk vault. Cloud sync bypassed.`
+      );
+      this.updateAggregates();
+      this.saveState();
+      return;
+    }
+
     try {
       sosAuditLogger.log("FIREBASE_CLOUD", "INFO", `Attempting cloud sync for ${incidentId}... (Online: ${navigator.onLine})`);
       const res = await syncSosToFirebase(incidentId);
@@ -289,12 +306,14 @@ export class DispatchEngine {
         channel.status = "FAILED";
         channel.error = res.incident?.syncError || "Device offline";
         this.enqueueRetry("FIREBASE_SYNC", incidentId);
+        cloudSyncManager.enqueue("INCIDENT_UPDATE", incidentId, {});
         sosAuditLogger.log("FIREBASE_CLOUD", "WARN", `Cloud sync failed (${channel.error}). Enqueued for offline retry.`);
       }
     } catch (err: any) {
       channel.status = "FAILED";
       channel.error = err?.message || "Cloud sync error";
       this.enqueueRetry("FIREBASE_SYNC", incidentId);
+      cloudSyncManager.enqueue("INCIDENT_UPDATE", incidentId, {});
       sosAuditLogger.log("FIREBASE_CLOUD", "WARN", `Cloud sync error: ${channel.error}. Enqueued for offline retry.`);
     }
 

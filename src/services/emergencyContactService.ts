@@ -18,6 +18,7 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
+import { cloudAuthService } from "./cloudAuthService";
 import type {
   EmergencyContact,
   ContactFormData,
@@ -208,10 +209,11 @@ function getCollectionRef() {
 
 /**
  * Loads all emergency contacts for the current user.
- * Tries Firestore first, falls back to localStorage cache.
+ * Tries Firestore first (if authenticated and not mock), falls back to localStorage cache.
  */
 export async function loadContacts(): Promise<EmergencyContact[]> {
-  if (IS_MOCK) {
+  const isCloudActive = !IS_MOCK && cloudAuthService.isCloudSyncEnabled();
+  if (!isCloudActive) {
     return readCache();
   }
 
@@ -233,7 +235,7 @@ export async function loadContacts(): Promise<EmergencyContact[]> {
     writeCache(contacts);
     return contacts;
   } catch (err) {
-    console.warn("Firestore read failed, falling back to cache:", err);
+    console.warn("Firestore read deferred, using local cache:", err);
     return readCache();
   }
 }
@@ -283,13 +285,14 @@ export async function saveContact(
     updatedAt: now,
   };
 
-  if (IS_MOCK) {
+  const isCloudActive = !IS_MOCK && cloudAuthService.isCloudSyncEnabled();
+  if (!isCloudActive) {
     const updated = [...existingContacts, contact];
     writeCache(updated);
     return contact;
   }
 
-  // Write to Firestore
+  // Write to Firestore if authenticated
   try {
     const colRef = getCollectionRef();
     const docRef = doc(colRef, id);
@@ -342,7 +345,8 @@ export async function updateContact(
     updatedAt: new Date().toISOString(),
   };
 
-  if (IS_MOCK) {
+  const isCloudActive = !IS_MOCK && cloudAuthService.isCloudSyncEnabled();
+  if (!isCloudActive) {
     const newList = existingContacts.map((c) => (c.id === id ? updated : c));
     writeCache(newList);
     return updated;
@@ -378,7 +382,8 @@ export async function deleteContactById(
 ): Promise<void> {
   const newList = existingContacts.filter((c) => c.id !== id);
 
-  if (IS_MOCK) {
+  const isCloudActive = !IS_MOCK && cloudAuthService.isCloudSyncEnabled();
+  if (!isCloudActive) {
     writeCache(newList);
     return;
   }

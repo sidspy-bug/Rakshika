@@ -42,6 +42,7 @@ import { useSilentCheckIn } from "../hooks/useSilentCheckIn";
 import { useAirTagMesh } from "../hooks/useAirTagMesh";
 import { guardianAnchorService } from "../services/guardianAnchorService";
 import { sosAuditLogger, type SosAuditLogEntry } from "../services/sosAuditLogger";
+import { cloudAuthService } from "../services/cloudAuthService";
 
 function Toast({ message }: { message: string }) {
   return (
@@ -502,6 +503,25 @@ export function SosScreen() {
                 <Settings className="w-3.5 h-3.5" />
                 <span>Contacts ({judgeContacts.length})</span>
               </button>
+            </div>
+
+            {/* Cloud Sync vs On-Device Vault Status Badge */}
+            <div className={`w-full max-w-md mt-2 px-3 py-1.5 rounded-xl text-xs flex items-center justify-between border transition-all ${
+              cloudAuthService.isCloudSyncEnabled()
+                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                : "bg-slate-800/80 border-slate-700/60 text-slate-300"
+            }`}>
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${cloudAuthService.isCloudSyncEnabled() ? "bg-emerald-400 animate-pulse" : "bg-cyan-400"}`} />
+                <span className="font-semibold">
+                  {cloudAuthService.isCloudSyncEnabled()
+                    ? "Cloud Sync: Authenticated & Live"
+                    : "On-Device Vault: Demo Mode (100% Local)"}
+                </span>
+              </div>
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">
+                {cloudAuthService.isCloudSyncEnabled() ? "Firebase Encrypted" : "Safe Disk"}
+              </span>
             </div>
 
             {/* Offline Status Warning Banner */}

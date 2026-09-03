@@ -53,23 +53,3 @@ export function VolunteerVerifiedGuard({ children }: { children: ReactNode }) {
 
   return <>{children}</>;
 }
-
-/**
- * Guard for the user side — ensures role is user (not volunteer).
- */
-export function UserRoleGuard({ children }: { children: ReactNode }) {
-  const token = localStorage.getItem("access_token");
-  const role = localStorage.getItem("rakshika_role");
-  const location = useLocation();
-
-  if (!token) {
-    return <Navigate to="/role-select" state={{ from: location }} replace />;
-  }
-
-  // If the user is a volunteer, redirect to volunteer dashboard
-  if (role === "volunteer") {
-    return <Navigate to="/volunteer/dashboard" replace />;
-  }
-
-  return <>{children}</>;
-}

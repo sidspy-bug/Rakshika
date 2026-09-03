@@ -15,6 +15,8 @@ import { storage, auth } from "./firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { computeSHA256 } from "./cryptoMeshService";
 import { sosAuditLogger } from "./sosAuditLogger";
+import { cloudAuthService } from "./cloudAuthService";
+import { setSosEvidenceUrl } from "./sosService";
 
 export interface EvidenceChunkMeta {
   index: number;
@@ -189,6 +191,13 @@ export class EvidenceChunkStreamer {
    * Uploads an individual chunk to Firebase Storage
    */
   private async uploadChunkToStorage(blob: Blob, chunkMeta: EvidenceChunkMeta): Promise<void> {
+    // If in Demo Mode or unauthenticated, isolate to on-device vault without touching cloud!
+    if (!cloudAuthService.isCloudSyncEnabled()) {
+      chunkMeta.status = "CAPTURED";
+      this.saveManifestToLocal();
+      return;
+    }
+
     const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
     if (isOffline) {
       chunkMeta.status = "FAILED";
@@ -199,10 +208,9 @@ export class EvidenceChunkStreamer {
     }
 
     try {
-      const user = auth.currentUser;
-      const userId = user ? user.uid : "anonymous";
+      const storagePrefix = cloudAuthService.getStoragePrefix();
       const fileName = `chunk_${String(chunkMeta.index).padStart(4, "0")}_${chunkMeta.sha256.slice(0, 8)}.webm`;
-      const fileRef = storageRef(storage, `sos_evidence/${userId}/${this.incidentId}/${fileName}`);
+      const fileRef = storageRef(storage, `${storagePrefix}/${this.incidentId}/${fileName}`);
 
       const snapshot = await uploadBytes(fileRef, blob, {
         customMetadata: {
@@ -264,6 +272,7 @@ export class EvidenceChunkStreamer {
       const { Filesystem, Directory } = await import("@capacitor/filesystem");
       const reader = new FileReader();
 
+      // 1. Save master video to phone's Documents/Rakshika directory
       reader.onloadend = async () => {
         const resultStr = (reader.result as string) || "";
         const markerIndex = resultStr.indexOf(";base64,");
@@ -283,6 +292,46 @@ export class EvidenceChunkStreamer {
         }
       };
       reader.readAsDataURL(masterBlob);
+
+      // 2. Upload master video to Firebase Storage if user is logged in and online
+      const isOnline = typeof navigator !== "undefined" && navigator.onLine;
+      if (cloudAuthService.isCloudSyncEnabled() && isOnline) {
+        try {
+          const storagePrefix = cloudAuthService.getStoragePrefix();
+          const masterFileRef = storageRef(storage, `${storagePrefix}/${this.incidentId}/master_evidence.webm`);
+          const snapshot = await uploadBytes(masterFileRef, masterBlob, {
+            contentType: "video/webm",
+            customMetadata: {
+              incidentId: this.incidentId,
+              totalChunks: String(this.manifest.totalChunks),
+              totalBytes: String(this.manifest.totalBytes),
+              assembledAt: new Date().toISOString(),
+            },
+          });
+
+          const masterDownloadUrl = await getDownloadURL(snapshot.ref);
+          this.manifest.masterVideoUrl = masterDownloadUrl;
+          this.saveManifestToLocal();
+
+          // Attach URL to active SOS incident record in Firestore and local state
+          setSosEvidenceUrl(masterDownloadUrl);
+          sosAuditLogger.log(
+            "EVIDENCE_STREAM",
+            "SUCCESS",
+            `Unified master evidence video successfully uploaded to Firebase Cloud Storage: ${masterDownloadUrl}`
+          );
+          console.log(`[EvidenceStreamer] Master video uploaded to cloud: ${masterDownloadUrl}`);
+        } catch (uploadErr) {
+          console.warn("[EvidenceStreamer] Failed to upload master video to cloud storage:", uploadErr);
+          sosAuditLogger.log("EVIDENCE_STREAM", "WARN", "Master video cloud upload deferred (stored on device).");
+        }
+      } else {
+        sosAuditLogger.log(
+          "EVIDENCE_STREAM",
+          "INFO",
+          `Master video saved securely in on-device vault (${cloudAuthService.isCloudSyncEnabled() ? "Offline" : "Demo Mode"}).`
+        );
+      }
     } catch (err) {
       console.warn("[EvidenceStreamer] Master video assembly error:", err);
     }

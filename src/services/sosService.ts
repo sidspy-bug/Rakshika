@@ -14,6 +14,7 @@
 import { auth, db } from "./firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { sosAuditLogger } from "./sosAuditLogger";
+import { cloudAuthService } from "./cloudAuthService";
 
 export type SosStatus = "ACTIVE" | "CANCELLED" | "RESOLVED";
 export type SosSyncStatus = "PENDING" | "SYNCED" | "FAILED";
@@ -121,24 +122,24 @@ export function createOrGetActiveSos(userData?: {
   isCreatingSos = true;
 
   try {
-    // 2. Resolve user identity from params, auth, or stored profile
+    // 2. Resolve user identity from cloudAuthService, params, or profile
     let userId = userData?.userId;
     let userEmail = userData?.userEmail;
     let userPhone = userData?.userPhone;
 
-    if (!userId || !userEmail || !userPhone) {
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        userId = userId || currentUser.uid;
-        userEmail = userEmail || currentUser.email || "";
-      }
+    const cloudUser = cloudAuthService.getCloudUser();
+    if (!cloudUser.isDemoMode) {
+      userId = userId || cloudUser.uid;
+      userEmail = userEmail || cloudUser.email;
+    }
 
+    if (!userId || !userEmail || !userPhone) {
       try {
         const profileRaw = localStorage.getItem("user_profile");
         if (profileRaw) {
           const profile = JSON.parse(profileRaw);
-          userId = userId || profile.uid || profile.id || "local-user";
-          userEmail = userEmail || profile.email || "unknown@rakshika.app";
+          userId = userId || (cloudUser.isDemoMode ? "local-user" : profile.uid || "local-user");
+          userEmail = userEmail || (cloudUser.isDemoMode ? "demo@rakshika.local" : profile.email || "user@rakshika.app");
           userPhone = userPhone || profile.phone || "";
         }
       } catch {
@@ -149,11 +150,11 @@ export function createOrGetActiveSos(userData?: {
     const incidentId = generateIncidentId();
     const incident: SosIncident = {
       id: incidentId,
-      userId: userId || "local-user",
-      userEmail: userEmail || "unknown@rakshika.app",
+      userId: userId || (cloudUser.isDemoMode ? "local-user" : "authenticated-user"),
+      userEmail: userEmail || (cloudUser.isDemoMode ? "demo@rakshika.local" : "user@rakshika.app"),
       userPhone: userPhone || "",
       status: "ACTIVE",
-      syncStatus: "PENDING",
+      syncStatus: cloudUser.isDemoMode ? "SYNCED" : "PENDING",
       activatedAt: new Date().toISOString(),
       locationHistory: [],
     };
@@ -165,9 +166,9 @@ export function createOrGetActiveSos(userData?: {
       "SOS_LIFECYCLE",
       "CRITICAL",
       `Active SOS locally established with ID: ${incident.id}`,
-      { userId: incident.userId, phone: incident.userPhone, isOnline: navigator.onLine }
+      { userId: incident.userId, phone: incident.userPhone, isOnline: navigator.onLine, isDemoMode: cloudUser.isDemoMode }
     );
-    console.log(`[SosService] Active SOS established locally with ID: ${incident.id}`);
+    console.log(`[SosService] Active SOS established locally with ID: ${incident.id} (DemoMode: ${cloudUser.isDemoMode})`);
 
     return incident;
   } finally {
@@ -250,6 +251,20 @@ export async function syncSosToFirebase(incidentId?: string): Promise<{
   try {
     targetIncident.lastSyncAttempt = new Date().toISOString();
 
+    // Gating: If user is in Demo Mode or unauthenticated, bypass cloud completely!
+    if (!cloudAuthService.isCloudSyncEnabled()) {
+      targetIncident.syncStatus = "SYNCED";
+      targetIncident.syncError = undefined;
+      localStorage.setItem(ACTIVE_SOS_KEY, JSON.stringify(targetIncident));
+      sosAuditLogger.log(
+        "FIREBASE_CLOUD",
+        "INFO",
+        `On-Device Vault Mode: Cloud sync safely bypassed (Demo Mode). Incident ${targetIncident.id} secured in local disk vault.`
+      );
+      console.log(`[SosService] Demo Mode: Cloud sync safely bypassed for SOS ${targetIncident.id}.`);
+      return { success: true, incident: targetIncident };
+    }
+
     const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
     if (isOffline) {
       targetIncident.syncStatus = "FAILED";
@@ -258,7 +273,7 @@ export async function syncSosToFirebase(incidentId?: string): Promise<{
       return { success: false, incident: targetIncident };
     }
 
-    // Attempt Firebase sync with 5-second timeout safeguard
+    // Attempt real Firebase sync with 5-second timeout safeguard
     const syncPromise = setDoc(
       doc(db, "sos_records", targetIncident.id),
       {
@@ -336,9 +351,9 @@ export async function stopSos(
   localStorage.removeItem(ACTIVE_SOS_KEY);
   console.log(`[SosService] Active SOS ${active.id} stopped with status: ${reason}`);
 
-  // 3. Asynchronously attempt to sync the resolution to Firebase (best-effort)
+  // 3. Asynchronously attempt to sync the resolution to Firebase ONLY if logged in and online
   const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
-  if (!isOffline) {
+  if (!isOffline && cloudAuthService.isCloudSyncEnabled()) {
     try {
       await setDoc(
         doc(db, "sos_records", active.id),
@@ -350,6 +365,7 @@ export async function stopSos(
         { merge: true }
       );
       console.log(`[SosService] Resolution for SOS ${active.id} synced to Firebase.`);
+      sosAuditLogger.log("FIREBASE_CLOUD", "SUCCESS", `SOS resolution status (${reason}) synced to Firestore.`);
     } catch (err) {
       console.warn("[SosService] Failed to sync SOS cancellation to Firebase:", err);
     }

@@ -82,6 +82,12 @@
 - **Native Android Hardware Central Scanner (`BluetoothLeScanner`):** Continuously scans for nearby peer distress beacons in the background with `ScanFilter`, capturing raw RSSI signal strength and payload bytes over the air between physical devices.
 - **Airplane Mode Operation Guideline:** Bluetooth must be toggled ON (which Android natively supports while in Airplane Mode) on both the victim and bystander devices for over-the-air BLE radio packet transmission.
 
+### 2.12 Dual-Mode Cloud Sync vs. On-Device Vault Architecture (`cloudAuthService.ts`, `cloudSyncManager.ts`)
+- **Zero-Cloud Demo / Guest Mode Isolation:** When unauthenticated or in Demo Mode, all Firebase Firestore and Storage operations are 100% bypassed. Eliminates all `User not authenticated`, `CORS`, and `5000ms timeout` errors. Operations run completely on-device (`Documents/Rakshika/`), cellular modem SMS, and hardware BLE mesh.
+- **Authenticated Cloud Mode:** When logged in with valid Firebase credentials, automatically synchronizes the live SOS incident document to Firestore, streams real-time GPS breadcrumbs, uploads chunked audio/video evidence, and upon incident completion, stitches and uploads the unified `master_evidence.webm` to Firebase Cloud Storage (`sos_evidence/{uid}/{incidentId}/master_evidence.webm`).
+- **Resilient Store-and-Forward Reconciler (`cloudSyncManager.ts`):** Automatically buffers un-uploaded incidents and media when connectivity drops, listening for network restoration to flush pending items with exponential backoff.
+- **Dead Code Purge:** Cleaned up 7 legacy/abandoned files (`smsFallbackService.ts`, `bleRelayService.ts`, `types/ble.ts`, `useBleRelay.ts`, `SOSBanner.tsx`, `EmptyState.tsx`, `App.css`) and consolidated `BleStatusCard.tsx` directly onto the native `useAirTagMesh` hardware engine.
+
 ---
 
 ## 3. Master Reference File
