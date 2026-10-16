@@ -14,7 +14,6 @@ import {
   HeartPulse,
   Navigation,
   Pill,
-  Train,
   Building2,
   Users,
 } from "lucide-react";
@@ -33,16 +32,6 @@ import { useNavigation } from "../hooks/useNavigation";
 import { NavigationPanel } from "../components/map/NavigationPanel";
 import { calculateDistance } from "../utils/geo";
 
-const CATEGORIES = [
-  { id: "all", label: "All Safe", icon: Shield },
-  { id: "police", label: "Police & Mahila", icon: Shield },
-  { id: "hospital", label: "Hospitals", icon: HeartPulse },
-  { id: "pharmacy_24h", label: "24/7 Meds", icon: Pill },
-  { id: "transit_station", label: "Metro/Transit", icon: Train },
-  { id: "volunteer", label: "Volunteers (Live)", icon: Users },
-  { id: "incidents", label: "Risk Warnings", icon: AlertTriangle },
-];
-
 export function MapScreen() {
   const {
     location: userLocation,
@@ -52,7 +41,7 @@ export function MapScreen() {
   } = useUserLocation();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<{ name: string; lat: number; lng: number; type?: string }[]>([]);
+  const [suggestions, setSuggestions] = useState<{ name: string; lat: number; lng: number; type?: string; distance?: number }[]>([]);
   const [searching, setSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedPoi, setSelectedPoi] = useState<HelpCenter | Incident | null>(null);
@@ -192,7 +181,7 @@ export function MapScreen() {
     const delayDebounceFn = setTimeout(async () => {
       setSearching(true);
       try {
-        const results = await searchAddress(trimmed, userLocation);
+        const results = await searchAddress(trimmed, userLocation, helpCenters);
         if (!abortController.signal.aborted) {
           setSuggestions(results);
         }
@@ -205,13 +194,13 @@ export function MapScreen() {
           setSearching(false);
         }
       }
-    }, 300); // 300ms fast debounce
+    }, 250); // 250ms fast debounce
 
     return () => {
       clearTimeout(delayDebounceFn);
       abortController.abort();
     };
-  }, [searchQuery, userLocation, selectedPoi]);
+  }, [searchQuery, userLocation, selectedPoi, helpCenters]);
 
   const handleSelectSuggestion = (place: { name: string; lat: number; lng: number; type?: string }) => {
     isSelectionRef.current = true;
@@ -331,21 +320,66 @@ export function MapScreen() {
 
         {/* Suggestion Dropdown */}
         {showSuggestions && suggestions.length > 0 && (
-          <div className="bg-black/95 border border-gray-800 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden divide-y divide-gray-900 max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
-            {suggestions.map((place, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSelectSuggestion(place)}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors flex items-center gap-3"
-              >
-                <div className="w-6 h-6 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-semibold block truncate">{place.name}</span>
-                </div>
-              </button>
-            ))}
+          <div className="bg-black/95 border border-gray-800 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden divide-y divide-gray-900 max-h-72 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+            {suggestions.map((place, idx) => {
+              const isPolice = place.type === "police" || place.type === "women_police";
+              const isHospital = place.type === "hospital";
+              const isMarket = place.type === "market";
+              const isTransit = place.type === "transit";
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleSelectSuggestion(place)}
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors flex items-center gap-3"
+                >
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                      isPolice
+                        ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                        : isHospital
+                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                        : isMarket
+                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                        : isTransit
+                        ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                        : "bg-gray-800 text-gray-400"
+                    }`}
+                  >
+                    {isPolice ? (
+                      <Shield className="w-3.5 h-3.5" />
+                    ) : isHospital ? (
+                      <HeartPulse className="w-3.5 h-3.5" />
+                    ) : isMarket ? (
+                      <Building2 className="w-3.5 h-3.5" />
+                    ) : isTransit ? (
+                      <Navigation className="w-3.5 h-3.5" />
+                    ) : (
+                      <MapPin className="w-3.5 h-3.5" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-semibold block truncate text-white">{place.name}</span>
+                    <span className="text-[10px] text-gray-400 capitalize block">
+                      {place.type === "women_police"
+                        ? "Women Safety Cell & Mahila Thana"
+                        : place.type === "police"
+                        ? "Police Station / Security"
+                        : place.type === "hospital"
+                        ? "Emergency Hospital & Trauma Care"
+                        : place.type === "market"
+                        ? "Commercial Center & Market"
+                        : place.type || "Location"}
+                    </span>
+                  </div>
+                  {place.distance !== undefined && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-900 border border-gray-800 text-gray-400 shrink-0 font-medium">
+                      {place.distance < 1000 ? `${Math.round(place.distance)}m` : `${(place.distance / 1000).toFixed(1)}km`}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -355,28 +389,6 @@ export function MapScreen() {
             Searching nearby safe locations...
           </div>
         )}
-
-        {/* Category Quick Filter Strip */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const isSelected = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 whitespace-nowrap border transition-all ${
-                  isSelected
-                    ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-900/30 scale-[1.02]"
-                    : "bg-black/75 text-gray-300 border-gray-800/80 hover:bg-black/90 hover:text-white backdrop-blur-lg"
-                }`}
-              >
-                <Icon className="w-3 h-3" />
-                <span>{cat.label}</span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {/* Main Interactive Map Component */}

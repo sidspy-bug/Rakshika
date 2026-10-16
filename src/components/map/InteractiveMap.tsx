@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getCachedTileUrl } from "../../services/offlineMapService";
@@ -42,11 +42,11 @@ export function InteractiveMap({
   const destinationMarkerRef = useRef<L.Marker | null>(null);
   const waypointsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const centersLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const incidentsLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const dangerHalosLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const routePolylineRef = useRef<L.LayerGroup | null>(null);
+  const activeTileLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
   const [followUser, setFollowUser] = useState(true);
+  const [mapMode, setMapMode] = useState<"satellite" | "streets" | "dark">("satellite");
 
   // 1. Initialize Map Instance
   useEffect(() => {
@@ -57,47 +57,11 @@ export function InteractiveMap({
       zoom: 16,
       zoomControl: false,
       attributionControl: false,
+      maxZoom: 21,
     });
 
-    const OfflineTileLayer = L.TileLayer.extend({
-      createTile: function (this: L.TileLayer, coords: L.Coords, done: L.DoneCallback) {
-        const tile = document.createElement("img");
-        L.DomEvent.on(tile, "load", L.Util.bind(done, null, null, tile));
-        L.DomEvent.on(tile, "error", L.Util.bind(done, null, null, tile));
-
-        const url = this.getTileUrl(coords);
-
-        if (!navigator.onLine) {
-          getCachedTileUrl(url)
-            .then((cachedBlobUrl) => {
-              if (cachedBlobUrl) {
-                tile.src = cachedBlobUrl;
-              } else {
-                tile.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" style="background:%23111112"><rect width="256" height="256" fill="%23111112"/><text x="50%" y="50%" fill="%23222" font-family="sans-serif" font-size="9" dominant-baseline="middle" text-anchor="middle">Offline Tile</text></svg>`;
-              }
-            })
-            .catch((err) => {
-              console.error("Failed to load tile from cache:", err);
-              tile.src = "";
-            });
-        } else {
-          tile.src = url;
-        }
-
-        return tile;
-      },
-    });
-
-    const isDarkMode = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const tileTheme = isDarkMode ? "dark_all" : "dark_all"; // CartoDB dark matter highlights emergency nodes vividly
-
-    const baseTileLayer = new (OfflineTileLayer as any)(
-      `https://{s}.basemaps.cartocdn.com/${tileTheme}/{z}/{x}/{y}{r}.png`,
-      {
-        maxZoom: 20,
-      }
-    );
-    baseTileLayer.addTo(map);
+    // Create primary tile group
+    activeTileLayerGroupRef.current = L.layerGroup().addTo(map);
 
     // Map Click Handler for tap-to-navigate
     map.on("click", async (e: L.LeafletMouseEvent) => {
@@ -118,9 +82,7 @@ export function InteractiveMap({
     });
 
     // Create layer groups
-    dangerHalosLayerGroupRef.current = L.layerGroup().addTo(map);
     centersLayerGroupRef.current = L.layerGroup().addTo(map);
-    incidentsLayerGroupRef.current = L.layerGroup().addTo(map);
     waypointsLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapRef.current = map;
@@ -133,6 +95,44 @@ export function InteractiveMap({
       }
     };
   }, []);
+
+  // 1.1 Dynamic Map Layer Switcher (Google Satellite Hybrid, Google Streets, Dark Mode)
+  useEffect(() => {
+    const group = activeTileLayerGroupRef.current;
+    if (!group) return;
+
+    group.clearLayers();
+
+    if (mapMode === "satellite") {
+      // Real High-Resolution Google Satellite Imagery + Crisp Indian Road & Landmark Labels
+      const satLayer = L.tileLayer("https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", {
+        subdomains: ["0", "1", "2", "3"],
+        maxZoom: 21,
+        maxNativeZoom: 20,
+      });
+      group.addLayer(satLayer);
+    } else if (mapMode === "streets") {
+      // Real Google Streets with full Indian road network, shops, and institutions
+      const streetsLayer = L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+        subdomains: ["0", "1", "2", "3"],
+        maxZoom: 21,
+        maxNativeZoom: 20,
+      });
+      group.addLayer(streetsLayer);
+    } else {
+      // High-Contrast Dark Canvas
+      const darkBase = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 16 }
+      );
+      const darkRef = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 16, opacity: 0.85 }
+      );
+      group.addLayer(darkBase);
+      group.addLayer(darkRef);
+    }
+  }, [mapMode]);
 
   // 2. Update User Location Marker
   useEffect(() => {
@@ -266,7 +266,17 @@ export function InteractiveMap({
     }
   }, [route, isSimulating]);
 
-  // 5. Update Help Centers & Volunteers Markers
+  // 5. Highlight Real Safety Areas (Women Police / Mahila Thana, Police Stations, Hospitals)
+  // Memoize stable key for real emergency facilities to prevent redraws when volunteers drift
+  const emergencyCentersKey = useMemo(() => {
+    return helpCenters
+      .filter((c) => c.type === "police" || c.type === "women_police" || c.type === "hospital")
+      .map((c) => `${c.id}-${c.lat.toFixed(4)}-${c.lng.toFixed(4)}`)
+      .sort()
+      .join("|");
+  }, [helpCenters]);
+
+  // 5. Highlight Real Safety Areas (Women Police / Mahila Thana, Police Stations, Hospitals)
   useEffect(() => {
     const map = mapRef.current;
     const group = centersLayerGroupRef.current;
@@ -274,147 +284,125 @@ export function InteractiveMap({
 
     group.clearLayers();
 
-    const filtered = helpCenters.filter((center) => {
-      if (filterCategory === "all") return true;
-      if (filterCategory === "police") return center.type === "police" || center.type === "women_police";
-      if (filterCategory === "hospital") return center.type === "hospital";
-      if (filterCategory === "pharmacy_24h") return center.type === "pharmacy_24h";
-      if (filterCategory === "transit_station") return center.type === "transit_station";
-      if (filterCategory === "volunteer") return center.type === "volunteer";
-      if (filterCategory === "safe_haven") return center.type !== "volunteer";
-      return true;
-    });
+    const emergencyList = helpCenters.filter(
+      (c) => c.type === "women_police" || c.type === "police" || c.type === "hospital"
+    );
 
-    filtered.forEach((center) => {
-      let iconColor = "bg-teal-600 shadow-[0_0_10px_rgba(13,148,136,0.5)]";
-      let iconEmoji = "🏥";
-      let labelBadge = "Help Center";
+    emergencyList.forEach((center) => {
+      const isWomenPolice = center.type === "women_police";
+      const isPolice = center.type === "police";
+      const isHospital = center.type === "hospital";
 
-      switch (center.type) {
-        case "police":
-          iconColor = "bg-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.6)]";
-          iconEmoji = "🛡️";
-          labelBadge = "Police Post";
-          break;
-        case "women_police":
-          iconColor = "bg-rose-500 shadow-[0_0_14px_rgba(244,63,94,0.7)]";
-          iconEmoji = "♀️👮‍♀️";
-          labelBadge = "Mahila Thana";
-          break;
-        case "hospital":
-          iconColor = "bg-rose-600 shadow-[0_0_12px_rgba(225,29,72,0.6)]";
-          iconEmoji = "🏥";
-          labelBadge = "24/7 Hospital";
-          break;
-        case "pharmacy_24h":
-          iconColor = "bg-emerald-600 shadow-[0_0_12px_rgba(16,185,129,0.6)]";
-          iconEmoji = "💊";
-          labelBadge = "24/7 Medical";
-          break;
-        case "transit_station":
-          iconColor = "bg-cyan-600 shadow-[0_0_12px_rgba(6,182,212,0.6)]";
-          iconEmoji = "🚆";
-          labelBadge = "Transit Hub";
-          break;
-        case "atm_bank":
-          iconColor = "bg-emerald-700";
-          iconEmoji = "🏧";
-          labelBadge = "Guarded ATM";
-          break;
-        case "safe_college":
-          iconColor = "bg-indigo-600";
-          iconEmoji = "🎓";
-          labelBadge = "Campus Safe Zone";
-          break;
-        case "volunteer":
-          iconColor = "bg-amber-500 shadow-[0_0_14px_rgba(245,158,11,0.7)]";
-          iconEmoji = "🙋‍♀️";
-          labelBadge = "Active Volunteer (30s Live)";
-          break;
-        case "destination":
-          iconColor = "bg-purple-600 shadow-[0_0_12px_rgba(147,51,234,0.6)]";
-          iconEmoji = "📍";
-          labelBadge = "Target";
-          break;
-        default:
-          iconColor = "bg-teal-600";
-          iconEmoji = "🛡️";
-          labelBadge = "Safe Haven";
-          break;
+      let strokeColor = "#3b82f6"; // Police sapphire blue
+      let fillColor = "#3b82f6";
+      let badgeLabel = `🛡️ ${center.name}`;
+      let badgeClass = "text-blue-300 border-blue-500/40 bg-blue-950/85";
+
+      if (isWomenPolice) {
+        strokeColor = "#f43f5e"; // Women Police neon rose
+        fillColor = "#f43f5e";
+        badgeLabel = `♀️ ${center.name}`;
+        badgeClass = "text-rose-200 border-rose-500/60 bg-rose-950/90 font-extrabold shadow-[0_0_15px_rgba(244,63,94,0.45)]";
+      } else if (isHospital) {
+        strokeColor = "#10b981"; // Hospital emerald green
+        fillColor = "#10b981";
+        badgeLabel = `🏥 ${center.name}`;
+        badgeClass = "text-emerald-200 border-emerald-500/40 bg-emerald-950/85";
       }
 
-      const icon = L.divIcon({
-        className: "help-center-marker",
-        html: `
-          <div class="flex flex-col items-center cursor-pointer group transition-transform duration-200 hover:scale-125">
-            <div class="w-8 h-8 ${iconColor} rounded-full border-2 border-white flex items-center justify-center text-xs">
-              ${iconEmoji}
-            </div>
-            <div class="w-1 h-2 ${iconColor.split(" ")[0]}"></div>
-          </div>
-        `,
-        iconSize: [32, 40],
-        iconAnchor: [16, 40],
+      // Render actual polygon compound if available, or tight circular safety zone (30-40m)
+      let areaLayer: L.Polygon | L.Circle;
+
+      if (center.polygon && center.polygon.length >= 3) {
+        areaLayer = L.polygon(center.polygon, {
+          color: strokeColor,
+          weight: 2,
+          fillColor,
+          fillOpacity: isWomenPolice ? 0.22 : 0.16,
+          className: "cursor-pointer transition-all",
+        });
+      } else {
+        const radius = Math.min(center.radius || 30, 40);
+        areaLayer = L.circle([center.lat, center.lng], {
+          radius,
+          color: strokeColor,
+          weight: 2,
+          fillColor,
+          fillOpacity: isWomenPolice ? 0.22 : 0.16,
+          className: "cursor-pointer transition-all",
+        });
+      }
+
+      // Elegant tooltip on hover (non-permanent to avoid cluttering streets)
+      areaLayer.bindTooltip(
+        `<div class="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-xl border shadow-2xl ${badgeClass}">
+          <span>${badgeLabel}</span>
+        </div>`,
+        {
+          permanent: false,
+          direction: "top",
+          offset: [0, -10],
+          className: "area-safe-badge",
+          interactive: false,
+        }
+      );
+
+      // Centered compact icon pin for clear landmark recognition
+      const iconHtml = `<div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shadow-xl border-2 cursor-pointer transition-transform hover:scale-110 ${
+        isWomenPolice
+          ? "bg-rose-600 text-white border-white shadow-rose-500/60"
+          : isPolice
+          ? "bg-blue-600 text-white border-white shadow-blue-500/60"
+          : "bg-emerald-600 text-white border-white shadow-emerald-500/60"
+      }">${isWomenPolice ? "♀" : isPolice ? "🛡️" : "🏥"}</div>`;
+
+      const centerMarker = L.marker([center.lat, center.lng], {
+        icon: L.divIcon({
+          className: "facility-pin",
+          html: iconHtml,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        }),
+        interactive: true,
       });
 
-      L.marker([center.lat, center.lng], { icon })
-        .addTo(group)
-        .on("click", () => {
-          if (onMarkerSelect) onMarkerSelect(center);
+      centerMarker.bindTooltip(
+        `<div class="flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-black/90 text-white border border-gray-700 shadow-xl">
+          <span>${center.name}</span>
+        </div>`,
+        {
+          permanent: false,
+          direction: "top",
+          offset: [0, -12],
+        }
+      );
+
+      // Tap/Click interaction to select area and reveal detail action card
+      const handleSelect = () => {
+        if (onMarkerSelect) onMarkerSelect(center);
+      };
+
+      areaLayer.on("click", handleSelect);
+      centerMarker.on("click", handleSelect);
+
+      areaLayer.on("mouseover", () => {
+        areaLayer.setStyle({
+          fillOpacity: 0.40,
+          weight: 3,
         });
-    });
-  }, [helpCenters, filterCategory, onMarkerSelect]);
-
-  // 6. Update Danger Zone Halos & Incident Markers
-  useEffect(() => {
-    const map = mapRef.current;
-    const group = incidentsLayerGroupRef.current;
-    const halosGroup = dangerHalosLayerGroupRef.current;
-    if (!map || !group || !halosGroup) return;
-
-    group.clearLayers();
-    halosGroup.clearLayers();
-
-    if (filterCategory !== "all" && filterCategory !== "incidents") {
-      return; // Filtered out
-    }
-
-    incidents.forEach((incident) => {
-      const isHigh = incident.severity === "high";
-      const color = isHigh ? "bg-rose-600 shadow-[0_0_14px_rgba(225,29,72,0.8)]" : "bg-amber-600 shadow-[0_0_10px_rgba(217,119,6,0.6)]";
-      const circleColor = isHigh ? "#e11d48" : "#d97706";
-
-      // Draw danger zone radius halo
-      L.circle([incident.lat, incident.lng], {
-        radius: isHigh ? 180 : 120,
-        color: circleColor,
-        fillColor: circleColor,
-        fillOpacity: 0.12,
-        weight: 1.5,
-        dashArray: "4, 4",
-      }).addTo(halosGroup);
-
-      const icon = L.divIcon({
-        className: "incident-marker",
-        html: `
-          <div class="flex flex-col items-center cursor-pointer group transition-transform duration-200 hover:scale-125">
-            <div class="w-8 h-8 ${color} rounded-full border-2 border-white flex items-center justify-center text-xs animate-pulse">
-              ⚠️
-            </div>
-            <div class="w-1 h-2 ${isHigh ? "bg-rose-600" : "bg-amber-600"}"></div>
-          </div>
-        `,
-        iconSize: [32, 40],
-        iconAnchor: [16, 40],
       });
 
-      L.marker([incident.lat, incident.lng], { icon })
-        .addTo(group)
-        .on("click", () => {
-          if (onMarkerSelect) onMarkerSelect(incident);
+      areaLayer.on("mouseout", () => {
+        areaLayer.setStyle({
+          fillOpacity: isWomenPolice ? 0.22 : 0.16,
+          weight: 2,
         });
+      });
+
+      areaLayer.addTo(group);
+      centerMarker.addTo(group);
     });
-  }, [incidents, filterCategory, onMarkerSelect]);
+  }, [emergencyCentersKey, onMarkerSelect]);
 
   const handleRecenter = () => {
     const map = mapRef.current;
@@ -431,6 +419,26 @@ export function InteractiveMap({
 
       {/* Floating Action Controls - Perfectly Positioned on Right Side (Unobstructed) */}
       <div className="absolute right-4 top-36 z-30 flex flex-col gap-2.5">
+        {/* Map View / Satellite Mode Toggle Button */}
+        <button
+          onClick={() => {
+            setMapMode((prev) => (prev === "satellite" ? "streets" : prev === "streets" ? "dark" : "satellite"));
+          }}
+          className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center shadow-2xl border backdrop-blur-xl transition-all active:scale-95 ${
+            mapMode === "satellite"
+              ? "bg-emerald-600 text-white border-emerald-400 shadow-emerald-500/40"
+              : mapMode === "streets"
+              ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/40"
+              : "bg-black/85 text-gray-300 border-gray-800 hover:text-white"
+          }`}
+          title={`Switch Map View (Current: ${mapMode})`}
+        >
+          <Layers className="w-4 h-4" />
+          <span className="text-[8px] font-bold uppercase tracking-tight mt-0.5">
+            {mapMode === "satellite" ? "Sat" : mapMode === "streets" ? "Map" : "Dark"}
+          </span>
+        </button>
+
         {/* Recenter Location Button */}
         <button
           onClick={handleRecenter}

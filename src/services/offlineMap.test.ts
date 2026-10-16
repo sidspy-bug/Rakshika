@@ -30,7 +30,7 @@ describe("Offline Map Service Tests", () => {
       const urls = getTileUrlsInBBox(city.bbox);
 
       expect(urls.length).toBeGreaterThan(0);
-      expect(urls[0]).toMatch(/^https:\/\/[a-d]\.basemaps\.cartocdn\.com\/dark_all\/\d+\/\d+\/\d+\.png$/);
+      expect(urls[0]).toMatch(/^https:\/\/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/Canvas\/World_Dark_Gray_Base\/MapServer\/tile\/\d+\/\d+\/\d+$/);
     });
 
     it("should contain tiles in the range of zoom levels 12 to 15", () => {
@@ -39,7 +39,7 @@ describe("Offline Map Service Tests", () => {
       
       // Verify that zoom levels are in the URL path
       const zoomMatches = urls.map(url => {
-        const match = url.match(/\/dark_all\/(\d+)\//);
+        const match = url.match(/\/tile\/(\d+)\//);
         return match ? parseInt(match[1]) : 0;
       });
 

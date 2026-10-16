@@ -39,6 +39,8 @@ export interface HelpCenter {
   address?: string;
   phone?: string;
   distance?: number; // in meters or km
+  polygon?: [number, number][]; // Actual boundary coordinates [lat, lng][]
+  radius?: number; // Highlight radius in meters if point geometry
 }
 
 export interface RouteDetails {

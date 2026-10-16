@@ -30,9 +30,7 @@
 | **Styling & Animation** | TailwindCSS 4 (`@tailwindcss/vite` 4.3.3, `tailwindcss` 4.3.3), Framer Motion 12.42.2, `clsx`, `tailwind-merge` | Utility styling, glassmorphism UI, transitions |
 | **Icons** | Lucide React (`lucide-react` 1.25.0) | Modern UI iconography |
 | **Forms & Validation** | React Hook Form (`react-hook-form` 7.82.0), Zod (`zod` 4.4.3), `@hookform/resolvers` 5.4.0 | Registration wizards & contact form validation |
-| **State & Async Data** | React Context (`authStore`, `volunteerStore`), `@tanstack/react-query` 5.101.2 | Global auth/role state, volunteer lifecycle state |
-| **GIS & Mapping** | Leaflet 1.9.4 (`leaflet`, `@types/leaflet` 1.9.21), OpenStreetMap, CartoDB Dark Tiles, Photon API, Nominatim API, Overpass API, OSRM Foot Routing | Geocoding, reverse geocoding, safe haven discovery, pedestrian routing, danger zone halos |
-| **AI Guardian Engine** | OpenRouter API + Local Heuristic Fallback Engine | Multi-model LLM fallback chain + deterministic pinch-situation safety engine |
+| **GIS & Mapping** | Leaflet 1.9.4 (`leaflet`, `@types/leaflet` 1.9.21), Esri World Dark Gray Canvas & Reference tiles, Nominatim API, Overpass API (`geom`), Photon API, OSRM Foot Routing | 100% free watermark-free dark basemap, real Indian hospital & police area polygon highlighting, pedestrian routing |
 | **Backend & Database** | Firebase 12.16.0 (Auth, Firestore, Cloud Storage), Axios 1.18.1 | Dual-mode authentication, incident storage, video evidence uploads, REST telemetry |
 | **Mobile Runtime** | Capacitor 8 (`@capacitor/core` 8.4.2, `@capacitor/android` 8.4.2, `@capacitor/cli` 8.4.2, `@capacitor/geolocation` 8.2.0, `@capacitor/filesystem` 8.1.2) | Android native bridge, location access, file system access |
 | **Native Android Plugins** | Custom Java Plugin `SmsPlugin.java` | Native cellular SMS broadcasting via Android `SmsManager` without external SMS gateway |
@@ -76,7 +74,7 @@ The application entry point is [src/App.tsx](file:///Users/ritesh/Documents/Raks
 | `/login` | `LoginScreen.tsx` | Public | User login via Firebase Auth or instant Demo Bypass |
 | `/register` | `RegisterScreen.tsx` | Public | 4-step user registration wizard (Personal info, Medical info, Locations, Emergency contacts) |
 | `/` | `Home.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | User Dashboard (SOS button, siren toggle, video record toggle, Guardian mode, fake call trigger) |
-| `/map` | `MapScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | Safe Walk GIS Map (search, route calculation, safe haven filters, offline maps, trip simulator) |
+| `/map` | `MapScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | Safe Walk GIS Map (search, route calculation, offline maps, trip simulator; category tag chips removed) |
 | `/ai` | `AiChatScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | Rakshika AI Guardian chat with GPS coordinate anchoring and live safe havens |
 | `/community` | `CommunityScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | Nearby verified volunteers list with simulated live distance and area alert broadcast |
 | `/profile` | `ProfileScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | User safety profile, safety score, emergency contacts management, permission toggles, logout |
@@ -249,28 +247,29 @@ Rakshika/
 
 ### 6.1 Safe Walk Map & GIS Routing Engine (`gisService.ts`, `navigationService.ts`, `InteractiveMap.tsx`)
 
-1. **Multi-Engine Geocoding & Fast Autocomplete:**
-   - **Local Landmark Directory:** High-frequency emergency landmarks (<5ms response) matched instantly against query string.
-   - **Photon Geocoder:** Location-biased OpenStreetMap autocomplete (`https://photon.komoot.io/api`) querying with a 300ms debounce and `AbortController`.
-   - **Nominatim Fallback:** Standard OSM Nominatim geocoding restricted to a 50km bounding box around the user.
-2. **Safe Haven POI Fetching (Overpass API):**
-   - Live query to Overpass API interpreter fetching nodes and ways within a 3,000m radius:
-     - `amenity=police` (categorized into Standard Police vs Mahila Thana / Women Help Desk).
-     - `amenity=hospital` (24/7 Trauma Care & Emergency Hospitals).
-     - `amenity=pharmacy` (24/7 Apollo / Chemist stores with high-lumen lighting).
-     - `railway=station`, `public_transport=station`, `amenity=bus_station` (CISF / CCTV monitored transit hubs).
-     - `amenity=atm`, `amenity=bank` (Guarded 24/7 ATM booths).
-     - `amenity=university`, `amenity=college` (Campus security gates).
-   - **Dynamic Proximity Fallbacks:** If the live Overpass query returns sparse results (<3 items), synthetic verified nodes centered dynamically on the user's GPS are seamlessly merged.
-3. **30-Second Dynamic Volunteer Refresh Cycle:**
+1. **Multi-Engine Geocoding, Intent Detection & Pan-India Search:**
+   - **Instant Indian Hubs & Markets Directory:** Curated dictionary covering prominent NCR and metro markets, sectors, and commercial belts (e.g. Alpha 2 Main Market, Jagat Farm, Beta 1, Pari Chowk, Sector 18 Atta Market, DLF Cyber Hub, CP) providing instant `<1ms` lookup with exact coordinate anchors.
+   - **Emergency & Amenity Intent Detection:** Natural language query understanding for phrases like *"nearby police from my location"*, *"police near me"*, *"nearby hospital"*, *"pharmacy"*. Automatically extracts user proximity intent, queries active safe havens/help centers, and returns real facilities sorted by proximity with live distance indicators (e.g. `294m away`, `1.2km away`).
+   - **Colloquial Market Query Relaxation:** Progressively decomposes queries with suffix descriptors (e.g. *"alpha 2 main market"* -> strips *"main market"* -> geocodes core locality *"alpha 2"* -> synthesizes the commercial market designation and returns exact sector bounds).
+   - **Pan-India Nominatim & Photon Geocoder:** Live querying with `countrycodes=in`, `addressdetails=1`, soft proximity bias, and strict India boundary filtering (`[lat 6-38, lng 68-98]`) preventing international result leakage.
+2. **High-Definition Satellite & Hybrid Basemap (`InteractiveMap.tsx`):**
+   - **Default Google Hybrid Satellite Mode:** Integrated Google Hybrid Satellite tiles (`https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}`) with `maxZoom: 21` and `maxNativeZoom: 20`, providing photographic satellite imagery with crisp road network and landmark label overlays.
+   - **Interactive Layer Switcher:** Floating toggle allowing real-time switching between **Satellite (`Sat`)**, **Google Streets (`Map`)**, and **Night / Dark Mode (`Dark`)**.
+   - **Elimination of Deep Zoom Cutoff:** Fixed the previous zoom-16 tile boundary ("Map data not yet available") by supporting sub-meter deep zoom up to level 21.
+3. **Emergency Safe Facility Highlighting (Verified Physical Compounds Only):**
+   - **Zero Synthetic Hallucinations:** Completely purged synthetic GPS-offset fallback locations (`center.lat + 0.0018`). Emergency highlights now strictly correspond to 100% verified real physical police stations, Mahila thanas, and hospitals.
+   - **Footprint Sanitization:** Bounding boxes exceeding 150m (administrative or district spans) are discarded to prevent giant rectangles from covering city sectors. Point facilities are highlighted with a realistic 30–40m compound radius.
+   - **Non-Obstructive Tooltips:** Removed permanent text badges hovering over map streets. Clean hover/tap tooltips and 24px icon pins (`♀` for Mahila Thana, `🛡️` for Police, `🏥` for Hospital) keep the map uncluttered.
+   - **Stable Redraw Layer:** Keyed the emergency facility layer to station IDs so that 30-second volunteer telemetry drift never causes emergency highlights to flash or re-render.
+4. **30-Second Dynamic Volunteer Refresh Cycle:**
    - A persistent volunteer cache maintains responder profiles.
    - Every 30 seconds, positions are smoothly drifted by ~10–30 meters along simulated local patrol paths instead of jittering on every component re-render.
-4. **Pedestrian Routing (OSRM):**
+5. **Pedestrian Routing (OSRM):**
    - Routes calculated via OSRM Foot API (`https://router.project-osrm.org/route/v1/foot`).
    - Automatically falls back to straight-line Haversine interpolation if offline or rate-limited.
    - **Auto-Recalculation:** `useNavigation` continuously compares the user's live coordinates against the route polyline; if deviation exceeds 50 meters, a new route is calculated automatically.
-5. **Danger Zones & Risk Halos:**
-   - Community-reported danger zones (unlit alleyways, harassment hotspots, deserted stretches) rendered as color-coded translucent circular halos (`L.circle`) on the Leaflet map.
+6. **Hazard Zones Clarification:**
+   - Artificial/mock red and yellow hazard circles and danger halos have been permanently removed from the map view for a clean, distraction-free safety visualization.
 
 ### 6.2 AI Guardian System (`aiGuardianService.ts`, `AiChatScreen.tsx`)
 

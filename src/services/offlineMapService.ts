@@ -44,8 +44,8 @@ export const OFFLINE_CITIES: OfflineCity[] = [
 const MIN_ZOOM = 12;
 const MAX_ZOOM = 15;
 
-// Base url for OSM / CartoDB tiles
-const TILE_URL_PATTERN = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
+// Base url for clean offline map tiles (Esri World Dark Gray Base)
+const TILE_URL_PATTERN = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
 const SUBDOMAINS = ["a", "b", "c", "d"];
 
 /**

@@ -35,7 +35,7 @@ export function useGisData({ userLocation, destination }: UseGisDataProps) {
       const volunteers = getNearbyVolunteers(coords, false);
       
       setHelpCenters([...centers, ...volunteers]);
-      setIncidents(localIncidents);
+      setIncidents([]);
     } catch (err: any) {
       console.warn("Failed to fetch GIS POIs:", err);
       setError("Failed to load safety centers.");
