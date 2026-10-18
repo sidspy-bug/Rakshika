@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Radio, X, ShieldAlert } from "lucide-react";
 import { AuthProvider } from "./store/authStore";
 import { VolunteerProvider } from "./store/volunteerStore";
 import { AppLayout } from "./components/layout/AppLayout";
@@ -172,10 +174,73 @@ export default function App() {
   // Passively listen for crowdsourced AirTag-style BLE distress beacons in the background
   useAirTagMesh(true);
 
+  const [interceptedAlert, setInterceptedAlert] = useState<{
+    incidentId: string;
+    lat?: number;
+    lng?: number;
+    urgency: string;
+    receivedAt: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleIntercepted = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setInterceptedAlert({
+          incidentId: customEvent.detail.incidentId,
+          lat: customEvent.detail.lat,
+          lng: customEvent.detail.lng,
+          urgency: customEvent.detail.urgency || "HIGH",
+          receivedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        });
+        // Auto-dismiss after 10 seconds
+        setTimeout(() => {
+          setInterceptedAlert(null);
+        }, 10000);
+      }
+    };
+
+    window.addEventListener("rakshika_ble_beacon_intercepted", handleIntercepted);
+    return () => {
+      window.removeEventListener("rakshika_ble_beacon_intercepted", handleIntercepted);
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <VolunteerProvider>
         <BrowserRouter>
+          {/* Global High-Visibility BLE Mesh Intercept Alert Banner */}
+          {interceptedAlert && (
+            <div className="fixed top-4 left-3 right-3 sm:left-6 sm:right-6 max-w-md mx-auto z-[99999] bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white p-3.5 rounded-2xl shadow-2xl border border-red-300/40 flex items-start gap-3 backdrop-blur-md animate-in slide-in-from-top-4 duration-300">
+              <div className="w-9 h-9 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0">
+                <Radio className="w-5 h-5 text-amber-300 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0 pr-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <p className="font-black text-[11px] uppercase tracking-wider text-amber-200">
+                    BLE Mesh Peer SOS Intercepted!
+                  </p>
+                </div>
+                <p className="text-xs text-white/95 font-medium mt-0.5 leading-snug">
+                  Detected over-the-air Bluetooth distress beacon from nearby device. Relay to Cloud/Emergency network engaged.
+                </p>
+                {interceptedAlert.lat && interceptedAlert.lng && (
+                  <p className="text-[10px] text-amber-100 font-mono mt-1 bg-black/25 px-2 py-0.5 rounded-md inline-block">
+                    📍 Lat: {interceptedAlert.lat.toFixed(5)}, Lng: {interceptedAlert.lng.toFixed(5)} ({interceptedAlert.receivedAt})
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setInterceptedAlert(null)}
+                className="w-7 h-7 rounded-lg bg-black/20 hover:bg-black/30 flex items-center justify-center text-white/80 hover:text-white shrink-0 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <AppRoutes />
         </BrowserRouter>
       </VolunteerProvider>

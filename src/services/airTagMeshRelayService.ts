@@ -25,6 +25,7 @@ interface BleMeshNativePlugin {
   stopScanning(): Promise<{ success: boolean }>;
   enableBluetooth?(): Promise<{ enabled: boolean; prompted?: boolean }>;
   getBluetoothState?(): Promise<{ enabled: boolean; supported: boolean }>;
+  requestBlePermissions?(): Promise<{ granted: boolean }>;
   addListener(
     eventName: "onBeaconDetected",
     listenerFunc: (data: { ciphertext: string; rssi: number; deviceAddress?: string; timestamp: number }) => void
@@ -151,6 +152,22 @@ class AirTagMeshRelayService {
   }
 
   /**
+   * Request Android BLE Scan & Advertise runtime permissions
+   */
+  async requestBlePermissions(): Promise<boolean> {
+    try {
+      if (BleMesh.requestBlePermissions) {
+        const res = await BleMesh.requestBlePermissions();
+        return !!res?.granted;
+      }
+      return true;
+    } catch (e) {
+      console.warn("[AirTagMesh] Failed to request BLE permissions:", e);
+      return false;
+    }
+  }
+
+  /**
    * Victim Action: Begins advertising an encrypted distress beacon
    */
   async broadcastSosBeacon(payload: SosBeaconPayload): Promise<string> {
@@ -259,6 +276,28 @@ class AirTagMeshRelayService {
         decrypted?.incidentId || "Encrypted"
       } (Hop ${hopCount})`
     );
+
+    // Haptic vibration feedback for physical confirmation of over-the-air BLE relay
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate([200, 100, 200, 100, 300]);
+      } catch (ignored) {}
+    }
+
+    // Dispatch global custom event for top alert banner in App
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("rakshika_ble_beacon_intercepted", {
+          detail: {
+            packetId: newPacket.packetId,
+            incidentId: decrypted?.incidentId || "OFFLINE-SOS",
+            lat: decrypted?.lat,
+            lng: decrypted?.lng,
+            urgency: decrypted?.urgency || "HIGH",
+          },
+        })
+      );
+    }
 
     // If device is currently online, attempt immediate flush
     if (typeof navigator !== "undefined" && navigator.onLine) {

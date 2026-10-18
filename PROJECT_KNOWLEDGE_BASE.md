@@ -365,6 +365,8 @@ Rakshika/
    - Dual-channel emergency dispatch:
      - Direct cellular SMS (`SmsPlugin.java` on Android / native SMS intent on mobile web) to selected emergency contacts and Police 112.
      - Over-the-air peer-to-peer Bluetooth beacon advertising (`airTagMeshRelayService.broadcastSosBeacon`).
+   - **Peer Interception Visual & Haptic Alert (`App.tsx`, `airTagMeshRelayService.ts`):**
+     - Whenever a nearby peer device running Rakshika intercepts a distress beacon over the air, it immediately triggers native haptic vibration (`navigator.vibrate([200, 100, 200, 100, 300])`) and displays a top glowing alert banner (`🚨 BLE Mesh Peer SOS Intercepted! Relayed distress beacon to cloud (Lat, Lng)`), providing visual and physical proof of over-the-air reception.
    - Persists a complete offline dispatch chat history in `localStorage` under `rakshika_offline_distress_chat`.
 
 ### 6.6 Forensic Evidence Vault & Incident Dossier (`EvidenceVaultScreen.tsx`, `evidencePlaybackService.ts`)

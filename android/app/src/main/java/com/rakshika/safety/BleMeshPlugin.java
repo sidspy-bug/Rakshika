@@ -26,6 +26,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -177,6 +178,14 @@ public class BleMeshPlugin extends Plugin {
             return;
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                Log.i(TAG, "Requesting BLUETOOTH_ADVERTISE runtime permission...");
+                requestPermissionForAlias("bluetooth", call, "advertisePermissionCallback");
+                return;
+            }
+        }
+
         try {
             // Re-fetch advertiser in case Bluetooth was just enabled
             advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
@@ -272,6 +281,26 @@ public class BleMeshPlugin extends Plugin {
         }
     }
 
+    @PermissionCallback
+    public void advertisePermissionCallback(PluginCall call) {
+        boolean granted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            granted = ContextCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED;
+        }
+
+        if (granted) {
+            Log.i(TAG, "BLUETOOTH_ADVERTISE permission granted, starting advertising...");
+            startAdvertising(call);
+        } else {
+            Log.w(TAG, "BLUETOOTH_ADVERTISE permission denied by user.");
+            JSObject ret = new JSObject();
+            ret.put("success", false);
+            ret.put("error", "PERMISSION_DENIED");
+            ret.put("message", "Bluetooth advertise permission required to broadcast distress beacons.");
+            call.resolve(ret);
+        }
+    }
+
     /**
      * Stop Hardware BLE Advertising
      */
@@ -303,6 +332,20 @@ public class BleMeshPlugin extends Plugin {
             ret.put("error", "BLUETOOTH_DISABLED");
             call.resolve(ret);
             return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                Log.i(TAG, "Requesting BLUETOOTH_SCAN runtime permission...");
+                requestPermissionForAlias("bluetooth", call, "scanPermissionCallback");
+                return;
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                Log.i(TAG, "Requesting ACCESS_FINE_LOCATION permission for BLE scan...");
+                requestPermissionForAlias("bluetooth", call, "scanPermissionCallback");
+                return;
+            }
         }
 
         try {
@@ -387,6 +430,45 @@ public class BleMeshPlugin extends Plugin {
             Log.e(TAG, "Failed to start BLE scan: " + e.getMessage(), e);
             call.reject("BLE Scan error: " + e.getMessage());
         }
+    }
+
+    @PermissionCallback
+    public void scanPermissionCallback(PluginCall call) {
+        boolean granted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            granted = ContextCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            granted = ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        }
+
+        if (granted) {
+            Log.i(TAG, "BLUETOOTH_SCAN permission granted, starting passive scanner...");
+            startScanning(call);
+        } else {
+            Log.w(TAG, "BLUETOOTH_SCAN permission denied by user.");
+            JSObject ret = new JSObject();
+            ret.put("success", false);
+            ret.put("error", "PERMISSION_DENIED");
+            ret.put("message", "Bluetooth scan permission required to receive peer SOS beacons.");
+            call.resolve(ret);
+        }
+    }
+
+    @PluginMethod
+    public void requestBlePermissions(PluginCall call) {
+        requestPermissionForAlias("bluetooth", call, "genericPermissionCallback");
+    }
+
+    @PermissionCallback
+    public void genericPermissionCallback(PluginCall call) {
+        boolean granted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            granted = ContextCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
+                      ContextCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED;
+        }
+        JSObject ret = new JSObject();
+        ret.put("granted", granted);
+        call.resolve(ret);
     }
 
     /**
