@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Shield, Map, MessageSquare, Users, Settings, ShieldAlert, X, Eye } from "lucide-react";
+import { Shield, Map, MessageSquare, Users, Settings, ShieldAlert, X } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { getActiveSos, stopSos, type SosIncident } from "../../services/sosService";
 import { dispatchEngine } from "../../services/dispatchEngine";

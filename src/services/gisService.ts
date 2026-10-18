@@ -225,7 +225,7 @@ export async function searchAddress(
     const filtered = candidateCenters.filter((c) => {
       if (isPoliceIntent) return c.type === "police" || c.type === "women_police";
       if (isHospitalIntent) return c.type === "hospital";
-      if (isPharmacyIntent) return c.type === "pharmacy";
+      if (isPharmacyIntent) return c.type === "pharmacy_24h";
       return true;
     });
 
@@ -354,7 +354,7 @@ export async function searchAddress(
         timeout: 3500,
       });
 
-      if (response.data && Array.isArray(response.data.features)) {
+      if (response?.data && Array.isArray(response.data.features)) {
         response.data.features.forEach((feature: any) => {
           const p = feature.properties || {};
           const coords = feature.geometry?.coordinates;
@@ -753,13 +753,13 @@ export async function getNearbyHelpCenters(center: Coords, radiusMeters: number 
       });
     };
 
-    if (policeRes.status === "fulfilled" && Array.isArray(policeRes.value.data)) {
+    if (policeRes.status === "fulfilled" && policeRes.value && Array.isArray(policeRes.value.data)) {
       processItems(policeRes.value.data, "police");
     }
-    if (hospitalRes.status === "fulfilled" && Array.isArray(hospitalRes.value.data)) {
+    if (hospitalRes.status === "fulfilled" && hospitalRes.value && Array.isArray(hospitalRes.value.data)) {
       processItems(hospitalRes.value.data, "hospital");
     }
-    if (mahilaRes.status === "fulfilled" && Array.isArray(mahilaRes.value.data)) {
+    if (mahilaRes.status === "fulfilled" && mahilaRes.value && Array.isArray(mahilaRes.value.data)) {
       processItems(mahilaRes.value.data, "women_police");
     }
   } catch (err) {

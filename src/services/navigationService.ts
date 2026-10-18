@@ -1,4 +1,5 @@
 import { calculateDistance } from "../utils/geo";
+export { calculateDistance };
 import axios from "axios";
 import type { Coords } from "../types/gis";
 import type { RouteProfile, RouteSummary } from "../types/navigation";

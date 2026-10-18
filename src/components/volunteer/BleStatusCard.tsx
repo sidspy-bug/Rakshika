@@ -1,6 +1,6 @@
 import { Bluetooth, Radio, Smartphone, Activity } from "lucide-react";
 import { useAirTagMesh } from "../../hooks/useAirTagMesh";
-import { formatTimeAgo } from "../emergency/EmergencyCard";
+import { formatTimeAgo } from "../../utils/formatTimeAgo";
 
 export function BleStatusCard() {
   const meshStats = useAirTagMesh(true);

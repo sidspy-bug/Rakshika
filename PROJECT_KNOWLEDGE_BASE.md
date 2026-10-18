@@ -200,7 +200,7 @@ Rakshika/
     │   │   ├── ContactCard.tsx      # Contact item card with call shortcut and priority tag
     │   │   ├── EmergencyCard.tsx    # SOS summary card
     │   │   ├── EmergencyContactsSection.tsx # Expandable contact manager on profile & home
-    │   │   ├── OfflineEmergencyModal.tsx # Zero-Net Offline Emergency Chat & GPS coordinates dispatch (Cellular SMS, BLE mesh, 1-tap templates)
+    │   │   ├── OfflineEmergencyModal.tsx # Zero-Net Offline Emergency Chat & GPS coordinates dispatch (Cellular SMS with contact management [add/remove/select/localStorage], BLE mesh, 1-tap templates)
     │   │   ├── PermissionBanner.tsx # Warning banner when location or SMS permissions are denied
     │   │   └── SOSBanner.tsx        # Top urgent alert banner during active SOS
     │   ├── settings/
@@ -375,6 +375,11 @@ Rakshika/
      - *Dynamic Lifecycle Adaptation:* `BleMeshPlugin.java` hooks into Capacitor's `handleOnPause()` and `handleOnResume()`. When the app is backgrounded or screen turned off, the scanner automatically throttles into `SCAN_MODE_LOW_POWER` for battery preservation; when the user returns to the app, it smoothly elevates to `SCAN_MODE_BALANCED` for rapid interactive responsiveness.
    - **Peer Interception Visual & Haptic Alert (`App.tsx`, `airTagMeshRelayService.ts`):**
      - Whenever a nearby peer device running Rakshika intercepts a distress beacon over the air, it immediately triggers native haptic vibration (`navigator.vibrate([200, 100, 200, 100, 300])`) and displays a top glowing alert banner displaying the emergency message (e.g. `💬 "i need some doctors"`), category badge (`[MEDICAL]`), GPS coordinates, and relays it directly to the Emergency Cloud Network (`sos_mesh_relays`).
+   - **Interactive SMS Targets & Contact Management (`OfflineEmergencyModal.tsx`):**
+     - Rather than displaying static phone numbers or count, the SMS Targets sub-header now features an interactive management bar.
+     - *Quick Contact Chips:* Displays contact names and numbers with visual selection indicators. Users can tap any chip to toggle whether that recipient receives the SMS distress dispatch.
+     - *Expandable Contact Manager Drawer:* Users can view their full list of trusted emergency recipients, click a delete/trash icon to remove obsolete contacts, and use an inline form (`Name` + `Phone Number`) to add new trusted contacts on the fly.
+     - *Instant Persistence:* All added and removed contacts are immediately persisted into `localStorage` under `rakshika-emergency-contacts`, synchronizing across app restarts and safety sessions.
    - Persists a complete offline dispatch chat history in `localStorage` under `rakshika_offline_distress_chat`.
 
 ### 6.6 Forensic Evidence Vault & Incident Dossier (`EvidenceVaultScreen.tsx`, `evidencePlaybackService.ts`)
@@ -418,6 +423,7 @@ Rakshika/
 | `npm run dev` | Starts the Vite local development server on `http://localhost:5173` |
 | `npm run build` | Compiles TypeScript and builds the production web bundle into `dist/` |
 | `npm run lint` | Runs Oxlint across the codebase for static code analysis |
+| `npm test` / `npx vitest run` | Runs unit & integration test suites (GIS, Navigation, SOS, Offline Map) |
 | `npm run preview` | Previews the production `dist/` build locally |
 | `npm run android:sync` | Builds web bundle and copies assets into `android/app/src/main/assets/public/` |
 | `npm run android:open` | Launches the native Android project in Android Studio |

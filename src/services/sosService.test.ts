@@ -24,7 +24,7 @@ Object.defineProperty(globalThis, "localStorage", { value: localStorageMock, wri
 
 // Mock Firebase Firestore methods
 vi.mock("firebase/firestore", () => ({
-  doc: vi.fn((_db, collection, id) => ({ path: `${collection}/${id}`, id })),
+  doc: vi.fn((_db: any, collection: any, id: any) => ({ path: `${collection}/${id}`, id })),
   setDoc: vi.fn().mockResolvedValue(undefined),
   getFirestore: vi.fn(),
 }));
@@ -38,6 +38,8 @@ vi.mock("./firebase", () => ({
 describe("Local-First SOS Service (Problem #1)", () => {
   beforeEach(() => {
     localStorageMock.clear();
+    localStorageMock.setItem("access_token", "real-firebase-jwt-token-for-test");
+    localStorageMock.setItem("user_profile", JSON.stringify({ uid: "user-1", email: "priya@example.com" }));
     clearAllSosDataForTesting();
     vi.clearAllMocks();
     (firestore.setDoc as any).mockReset();

@@ -36,7 +36,7 @@ export function useEmergencyContacts() {
   const [permissionStatus, setPermissionStatus] =
     useState<ContactPermissionStatus>(() => checkContactPickerSupport());
 
-  const dismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---------------------------------------------------------------------------
   // Auto-dismiss feedback messages

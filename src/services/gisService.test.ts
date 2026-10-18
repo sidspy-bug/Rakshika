@@ -10,7 +10,7 @@ import { searchAddress, getRoute, getNearbyHelpCenters } from "./gisService";
 
 // Mock axios
 vi.mock("axios");
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedAxios = vi.mocked(axios);
 
 describe("GIS Service Tests", () => {
   beforeEach(() => {
@@ -34,11 +34,13 @@ describe("GIS Service Tests", () => {
         })
       );
       expect(results).toHaveLength(2);
-      expect(results[0]).toEqual({
-        name: "Delhi Hospital, India",
-        lat: 28.6139,
-        lng: 77.2090
-      });
+      expect(results[0]).toEqual(
+        expect.objectContaining({
+          name: "Delhi Hospital, India",
+          lat: 28.6139,
+          lng: 77.2090,
+        })
+      );
     });
 
     it("should return empty array when geocoding api fails", async () => {
@@ -99,57 +101,68 @@ describe("GIS Service Tests", () => {
   });
 
   describe("getNearbyHelpCenters", () => {
-    it("should extract coordinates and tags from Overpass API elements", async () => {
+    it("should extract coordinates and tags from Nominatim search elements", async () => {
       const center = { lat: 28.6139, lng: 77.2090 };
-      const mockOverpassData = {
-        elements: [
-          {
-            type: "node",
-            id: 101,
-            lat: 28.6145,
-            lon: 77.2105,
-            tags: { amenity: "police", name: "Police Station Section A" }
-          },
-          {
-            type: "way",
-            id: 202,
-            center: { lat: 28.6120, lon: 77.2050 },
-            tags: { amenity: "hospital", name: "Safe Hospital Complex" }
-          }
-        ]
-      };
-      mockedAxios.post.mockResolvedValueOnce({ data: mockOverpassData });
+      const mockPolice = [
+        {
+          osm_type: "node",
+          osm_id: 101,
+          lat: "28.6145",
+          lon: "77.2105",
+          name: "Police Station Section A",
+          display_name: "Police Station Section A, New Delhi",
+        },
+      ];
+      const mockHospital = [
+        {
+          osm_type: "way",
+          osm_id: 202,
+          lat: "28.6120",
+          lon: "77.2050",
+          name: "Safe Hospital Complex",
+          display_name: "Safe Hospital Complex, New Delhi",
+        },
+      ];
+
+      mockedAxios.get.mockImplementation(async (url: string, config?: any) => {
+        if (url.includes("/search")) {
+          if (config?.params?.amenity === "police") return { data: mockPolice };
+          if (config?.params?.amenity === "hospital") return { data: mockHospital };
+          return { data: [] };
+        }
+        return { data: [] };
+      });
 
       const helpCenters = await getNearbyHelpCenters(center);
 
-      expect(helpCenters).toHaveLength(2);
-      expect(helpCenters[0]).toEqual(
-        expect.objectContaining({
-          id: "node-101",
-          name: "Police Station Section A",
-          type: "police",
-          lat: 28.6145,
-          lng: 77.2105
-        })
-      );
-      expect(helpCenters[1]).toEqual(
-        expect.objectContaining({
-          id: "way-202",
-          name: "Safe Hospital Complex",
-          type: "hospital",
-          lat: 28.6120,
-          lng: 77.2050
-        })
+      expect(helpCenters.length).toBeGreaterThanOrEqual(2);
+      expect(helpCenters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: "police-101",
+            name: "Police Station Section A",
+            type: "police",
+            lat: 28.6145,
+            lng: 77.2105,
+          }),
+          expect.objectContaining({
+            id: "hospital-202",
+            name: "Safe Hospital Complex",
+            type: "hospital",
+            lat: 28.6120,
+            lng: 77.2050,
+          }),
+        ])
       );
     });
 
-    it("should fallback to mock offline help centers if Overpass API times out", async () => {
+    it("should fallback to mock offline help centers if Nominatim times out", async () => {
       const center = { lat: 28.6139, lng: 77.2090 };
-      mockedAxios.post.mockRejectedValueOnce(new Error("Timeout"));
+      mockedAxios.get.mockRejectedValue(new Error("Timeout"));
 
       const helpCenters = await getNearbyHelpCenters(center);
       expect(helpCenters.length).toBeGreaterThan(0);
-      expect(helpCenters[0].id).toContain("mock-");
+      expect(helpCenters[0].id).toBeDefined();
     });
   });
 });

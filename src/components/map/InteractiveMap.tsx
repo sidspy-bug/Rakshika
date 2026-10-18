@@ -1,45 +1,49 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { getCachedTileUrl } from "../../services/offlineMapService";
 import type { Coords, HelpCenter, Incident } from "../../types/gis";
 import type { RouteSummary, Waypoint } from "../../types/navigation";
-import { Shield, Navigation, Loader2, Plus, Minus, Layers, AlertTriangle } from "lucide-react";
+import { Navigation, Loader2, Plus, Minus, Layers } from "lucide-react";
 
 interface InteractiveMapProps {
-  userLocation: Coords;
-  destination: Coords | null;
+  userLocation?: Coords;
+  center?: Coords;
+  zoom?: number;
+  emergencyLocation?: Coords;
+  destination?: Coords | null;
   waypoints?: Waypoint[];
-  helpCenters: HelpCenter[];
-  incidents: Incident[];
-  route: RouteSummary | null;
-  isLoading: boolean;
+  helpCenters?: HelpCenter[];
+  incidents?: Incident[];
+  route?: RouteSummary | null;
+  isLoading?: boolean;
   filterCategory?: string;
   onMarkerSelect?: (center: HelpCenter | Incident) => void;
   onMapClick?: (coords: Coords, address: string) => void;
   onClearDestination?: () => void;
-  isSimulating: boolean;
+  isSimulating?: boolean;
 }
 
 export function InteractiveMap({
-  userLocation,
-  destination,
+  userLocation = { lat: 28.6139, lng: 77.209 },
+  center,
+  zoom = 16,
+  emergencyLocation,
+  destination: _destination,
   waypoints = [],
-  helpCenters,
-  incidents,
-  route,
-  isLoading,
-  filterCategory = "all",
+  helpCenters = [],
+  incidents: _incidents = [],
+  route = null,
+  isLoading = false,
+  filterCategory: _filterCategory = "all",
   onMarkerSelect,
   onMapClick,
-  isSimulating,
+  isSimulating = false,
 }: InteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
 
   // Keep track of layers to clear them dynamically
   const userMarkerRef = useRef<L.Marker | null>(null);
-  const destinationMarkerRef = useRef<L.Marker | null>(null);
   const waypointsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const centersLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const routePolylineRef = useRef<L.LayerGroup | null>(null);
@@ -52,9 +56,15 @@ export function InteractiveMap({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
+    const initialCenter = center
+      ? [center.lat, center.lng]
+      : emergencyLocation
+      ? [emergencyLocation.lat, emergencyLocation.lng]
+      : [userLocation.lat, userLocation.lng];
+
     const map = L.map(mapContainerRef.current, {
-      center: [userLocation.lat, userLocation.lng],
-      zoom: 16,
+      center: initialCenter as L.LatLngExpression,
+      zoom,
       zoomControl: false,
       attributionControl: false,
       maxZoom: 21,

@@ -1,5 +1,5 @@
 import type { RouteProfile, Waypoint, RouteSummary } from "../../types/navigation";
-import { Trash2, Footprints, Car, Clock, Compass, AlertTriangle, Sparkles, Navigation, ShieldCheck } from "lucide-react";
+import { Trash2, Footprints, Car, Clock, Compass, AlertTriangle, Navigation, ShieldCheck } from "lucide-react";
 import { Button } from "../ui/Button";
 import { GlassCard } from "../ui/GlassCard";
 

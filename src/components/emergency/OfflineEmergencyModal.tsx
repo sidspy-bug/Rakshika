@@ -15,6 +15,11 @@ import {
   Bluetooth,
   BluetoothSearching,
   CheckCircle2,
+  Trash2,
+  UserPlus,
+  Plus,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { registerPlugin, Capacitor } from "@capacitor/core";
@@ -105,6 +110,9 @@ export function OfflineEmergencyModal({
   >([]);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [includePolice, setIncludePolice] = useState(true);
+  const [isManagingContacts, setIsManagingContacts] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -191,6 +199,47 @@ export function OfflineEmergencyModal({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleToggleContact = (phone: string) => {
+    setSelectedContacts((prev) =>
+      prev.includes(phone) ? prev.filter((p) => p !== phone) : [...prev, phone]
+    );
+  };
+
+  const handleAddContact = () => {
+    const trimmedPhone = newContactPhone.trim();
+    if (!trimmedPhone || trimmedPhone.replace(/\D/g, "").length < 7) {
+      showToast("Please enter a valid phone number (at least 7 digits)");
+      return;
+    }
+
+    const trimmedName = newContactName.trim() || "Trusted Contact";
+    if (emergencyContacts.some((c) => c.phone === trimmedPhone)) {
+      showToast("This contact number is already added!");
+      return;
+    }
+
+    const updated = [...emergencyContacts, { name: trimmedName, phone: trimmedPhone }];
+    setEmergencyContacts(updated);
+    setSelectedContacts((prev) => [...prev, trimmedPhone]);
+    try {
+      localStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    setNewContactName("");
+    setNewContactPhone("");
+    showToast(`Added ${trimmedName} to emergency contacts!`);
+  };
+
+  const handleRemoveContact = (phoneToRemove: string) => {
+    const updated = emergencyContacts.filter((c) => c.phone !== phoneToRemove);
+    setEmergencyContacts(updated);
+    setSelectedContacts((prev) => prev.filter((p) => p !== phoneToRemove));
+    try {
+      localStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+    showToast("Contact removed from emergency targets");
   };
 
   const handleEnableBluetooth = async () => {
@@ -294,7 +343,8 @@ ${landmarkText}
       enqueueLocation({
         latitude: lat,
         longitude: lng,
-        timestamp: Date.now(),
+        timestamp: new Date().toISOString(),
+        emergencyId: null,
         batteryLevel: 99,
       });
     } catch (queueErr) {
@@ -376,31 +426,169 @@ ${landmarkText}
               </button>
             </div>
 
-            {/* Sub-Header: Streamlined SMS Targets Bar */}
-            <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center justify-between text-xs shrink-0">
-              <div className="flex items-center gap-1.5 text-gray-700 font-medium">
-                <Users className="w-3.5 h-3.5 text-gray-500" />
-                <span className="font-semibold text-gray-800">SMS Targets:</span>
-                <span className="text-gray-600">
-                  {selectedContacts.length > 0
-                    ? `${selectedContacts.length} Contact${selectedContacts.length > 1 ? "s" : ""}`
-                    : "No Contacts"}
-                </span>
-                {includePolice && (
-                  <span className="bg-red-100 text-red-800 font-bold px-1.5 py-0.5 rounded text-[10px]">
-                    + Police 112
+            {/* Sub-Header: Interactive SMS Targets & Contact Management Bar */}
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 shrink-0">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 text-gray-700 font-medium flex-wrap">
+                  <Users className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="font-semibold text-gray-800">SMS Targets:</span>
+                  <span className="text-gray-600 font-medium">
+                    {selectedContacts.length > 0
+                      ? `${selectedContacts.length} Selected`
+                      : "None Selected"}
                   </span>
-                )}
+                  {includePolice && (
+                    <span className="bg-red-100 text-red-800 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                      + Police 112
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <label className="text-xs font-bold text-red-700 flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includePolice}
+                      onChange={(e) => setIncludePolice(e.target.checked)}
+                      className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5"
+                    />
+                    Police 112
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsManagingContacts((prev) => !prev)}
+                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 text-[11px] font-bold flex items-center gap-1 shadow-xs transition-colors"
+                  >
+                    <span>{isManagingContacts ? "Done" : "Manage"}</span>
+                    {isManagingContacts ? (
+                      <ChevronUp className="w-3 h-3 text-gray-500" />
+                    ) : (
+                      <ChevronDown className="w-3 h-3 text-gray-500" />
+                    )}
+                  </button>
+                </div>
               </div>
-              <label className="text-xs font-bold text-red-700 flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includePolice}
-                  onChange={(e) => setIncludePolice(e.target.checked)}
-                  className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5"
-                />
-                Police 112
-              </label>
+
+              {/* Active Quick Contact Chips (Compact View) */}
+              {!isManagingContacts && emergencyContacts.length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2">
+                  {emergencyContacts.map((c) => {
+                    const isSelected = selectedContacts.includes(c.phone);
+                    return (
+                      <button
+                        key={c.phone}
+                        type="button"
+                        onClick={() => handleToggleContact(c.phone)}
+                        className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-all border ${
+                          isSelected
+                            ? "bg-red-50 border-red-300 text-red-900 font-bold shadow-xs"
+                            : "bg-white border-gray-200 text-gray-400 opacity-60 line-through"
+                        }`}
+                        title={isSelected ? "Click to exclude from SMS" : "Click to include in SMS"}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-red-500" : "bg-gray-400"}`} />
+                        <span>{c.name}</span>
+                        <span className="text-[10px] text-gray-500 font-mono">({c.phone})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Expandable Manage Contacts Panel */}
+              <AnimatePresence>
+                {isManagingContacts && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden pt-2.5 pb-1 space-y-2 border-t border-gray-200 mt-2"
+                  >
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-600">
+                      Emergency SMS Contacts:
+                    </p>
+
+                    {/* Contacts List with Delete & Toggle */}
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {emergencyContacts.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic py-1">
+                          No emergency contacts saved yet. Add a contact number below.
+                        </p>
+                      ) : (
+                        emergencyContacts.map((contact) => (
+                          <div
+                            key={contact.phone}
+                            className="flex items-center justify-between p-2 bg-white rounded-xl border border-gray-200 shadow-xs text-xs"
+                          >
+                            <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={selectedContacts.includes(contact.phone)}
+                                onChange={() => handleToggleContact(contact.phone)}
+                                className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5"
+                              />
+                              <div className="truncate">
+                                <span className="font-bold text-gray-900">{contact.name}</span>
+                                <span className="ml-1.5 font-mono text-gray-500 text-[11px]">
+                                  {contact.phone}
+                                </span>
+                              </div>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveContact(contact.phone)}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2"
+                              title="Delete contact"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Add New Contact Inline Form */}
+                    <div className="bg-white p-2.5 rounded-xl border border-dashed border-red-200 space-y-2">
+                      <p className="text-[11px] font-bold text-red-800 flex items-center gap-1">
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Add New Contact</span>
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Contact Name (e.g. Mom)"
+                          value={newContactName}
+                          onChange={(e) => setNewContactName(e.target.value)}
+                          className="bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500"
+                        />
+                        <input
+                          type="tel"
+                          placeholder="Phone (e.g. +91 9876543210)"
+                          value={newContactPhone}
+                          onChange={(e) => setNewContactPhone(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddContact();
+                            }
+                          }}
+                          className="bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500 font-mono"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddContact}
+                        disabled={!newContactPhone.trim()}
+                        className="w-full py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-xs transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Save Contact</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Scrollable Body: Pure Chat Feed */}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { Radio, X, ShieldAlert } from "lucide-react";
+import { Radio, X } from "lucide-react";
 import { AuthProvider } from "./store/authStore";
 import { VolunteerProvider } from "./store/volunteerStore";
 import { AppLayout } from "./components/layout/AppLayout";

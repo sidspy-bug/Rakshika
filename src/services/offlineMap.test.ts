@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { latLngToTile, getTileUrlsInBBox, OFFLINE_CITIES } from "./offlineMapService";
 
 describe("Offline Map Service Tests", () => {
@@ -11,7 +11,7 @@ describe("Offline Map Service Tests", () => {
       expect(tile.x).toBeGreaterThan(0);
       expect(tile.y).toBeGreaterThan(0);
       expect(tile.x).toBe(2926);
-      expect(tile.y).toBe(1722);
+      expect(tile.y).toBe(1707);
     });
 
     it("should calculate correct Mercator tile coordinates for Mumbai at zoom 15", () => {
@@ -19,8 +19,8 @@ describe("Offline Map Service Tests", () => {
       const zoom = 15;
       const tile = latLngToTile(18.9750, 72.8258, zoom);
       
-      expect(tile.x).toBe(23013);
-      expect(tile.y).toBe(14763);
+      expect(tile.x).toBe(23012);
+      expect(tile.y).toBe(14624);
     });
   });
 

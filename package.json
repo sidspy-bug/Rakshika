@@ -9,6 +9,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test": "vitest run",
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android"
   },
@@ -44,6 +45,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "vite": "^8.1.1",
+    "vitest": "^4.1.12"
   }
 }

@@ -69,7 +69,7 @@ class AirTagMeshRelayService {
   private isScanning = false;
   private isAdvertising = false;
   private activeBeaconCiphertext: string | null = null;
-  private scanInterval: NodeJS.Timeout | null = null;
+  private scanInterval: ReturnType<typeof setInterval> | null = null;
   private listeners: ((stats: MeshStats) => void)[] = [];
 
   constructor() {
@@ -460,6 +460,7 @@ class AirTagMeshRelayService {
       lng,
       timestamp: new Date().toISOString(),
       urgency: "CRITICAL",
+      hopCount: 0,
     });
 
     const packet = await this.receiveInterceptedBeacon(ciphertext, -52);
