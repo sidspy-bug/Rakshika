@@ -19,10 +19,12 @@ import {
 } from "./cryptoMeshService";
 
 interface BleMeshNativePlugin {
-  startAdvertising(options: { payload: string }): Promise<{ success: boolean; error?: string }>;
+  startAdvertising(options: { payload: string }): Promise<{ success: boolean; error?: string; message?: string }>;
   stopAdvertising(): Promise<{ success: boolean }>;
   startScanning(): Promise<{ success: boolean; error?: string }>;
   stopScanning(): Promise<{ success: boolean }>;
+  enableBluetooth?(): Promise<{ enabled: boolean; prompted?: boolean }>;
+  getBluetoothState?(): Promise<{ enabled: boolean; supported: boolean }>;
   addListener(
     eventName: "onBeaconDetected",
     listenerFunc: (data: { ciphertext: string; rssi: number; deviceAddress?: string; timestamp: number }) => void
@@ -120,6 +122,35 @@ class AirTagMeshRelayService {
   }
 
   /**
+   * Check whether Bluetooth is powered on
+   */
+  async getBluetoothState(): Promise<{ enabled: boolean; supported: boolean }> {
+    try {
+      if (BleMesh.getBluetoothState) {
+        return await BleMesh.getBluetoothState();
+      }
+    } catch (e) {
+      console.warn("[AirTagMesh] getBluetoothState error:", e);
+    }
+    return { enabled: true, supported: true };
+  }
+
+  /**
+   * Request system to turn on Bluetooth (critical in Airplane mode)
+   */
+  async requestEnableBluetooth(): Promise<boolean> {
+    try {
+      if (BleMesh.enableBluetooth) {
+        const res = await BleMesh.enableBluetooth();
+        return res?.enabled ?? false;
+      }
+    } catch (e) {
+      console.warn("[AirTagMesh] Failed to request bluetooth enable:", e);
+    }
+    return false;
+  }
+
+  /**
    * Victim Action: Begins advertising an encrypted distress beacon
    */
   async broadcastSosBeacon(payload: SosBeaconPayload): Promise<string> {
@@ -131,8 +162,18 @@ class AirTagMeshRelayService {
     
     // 1. Hardware Bluetooth Radio Advertising (Over-The-Air BLE)
     try {
-      await BleMesh.startAdvertising({ payload: ciphertext });
-      console.log("[AirTagMesh] 📡 Native Hardware BLE beacon advertising engaged over physical radio.");
+      const res = await BleMesh.startAdvertising({ payload: ciphertext });
+      if (res && !res.success) {
+        console.warn("[AirTagMesh] BLE advertising notice:", res.error, res.message);
+        if (res.error === "BLUETOOTH_DISABLED") {
+          // Auto request to enable Bluetooth
+          try {
+            await BleMesh.enableBluetooth?.();
+          } catch {}
+        }
+      } else {
+        console.log("[AirTagMesh] 📡 Native Hardware BLE beacon advertising engaged over physical radio.");
+      }
     } catch (nativeErr) {
       console.warn("[AirTagMesh] Native BLE advertising fallback:", nativeErr);
     }
@@ -348,6 +389,35 @@ class AirTagMeshRelayService {
     this.notifyListeners();
     console.log(`[AirTagMesh] ✅ Successfully flushed ${flushedCount} emergency beacon(s) to cloud.`);
     return { flushedCount, errors };
+  }
+
+  /**
+   * Simulates an in-person drive-by relay (e.g. for testing Tier 3 without waiting for physical movement)
+   */
+  async simulateDriveByPass(
+    incidentId: string,
+    lat: number,
+    lng: number
+  ): Promise<BufferedMeshPacket> {
+    const ciphertext = await encryptSosBeacon({
+      incidentId,
+      lat,
+      lng,
+      timestamp: new Date().toISOString(),
+      urgency: "CRITICAL",
+    });
+
+    const packet = await this.receiveInterceptedBeacon(ciphertext, -52);
+    if (!packet) {
+      throw new Error("Packet was already buffered or filtered.");
+    }
+
+    // If online, flush immediately to cloud
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      await this.flushBufferedBeaconsToCloud().catch(() => {});
+    }
+
+    return packet;
   }
 
   /**

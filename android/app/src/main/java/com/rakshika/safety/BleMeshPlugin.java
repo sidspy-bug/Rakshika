@@ -14,6 +14,7 @@ import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.ParcelUuid;
@@ -73,13 +74,73 @@ public class BleMeshPlugin extends Plugin {
     }
 
     private boolean checkBluetoothState() {
-        if (bluetoothAdapter == null) {
-            BluetoothManager manager = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
-            if (manager != null) {
-                bluetoothAdapter = manager.getAdapter();
+        try {
+            if (bluetoothAdapter == null) {
+                BluetoothManager manager = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+                if (manager != null) {
+                    bluetoothAdapter = manager.getAdapter();
+                }
             }
+            return bluetoothAdapter != null && bluetoothAdapter.isEnabled();
+        } catch (SecurityException se) {
+            Log.w(TAG, "Bluetooth permission not yet granted: " + se.getMessage());
+            return false;
+        } catch (Exception e) {
+            Log.w(TAG, "Error checking bluetooth state: " + e.getMessage());
+            return false;
         }
-        return bluetoothAdapter != null && bluetoothAdapter.isEnabled();
+    }
+
+    /**
+     * Check if Bluetooth is currently active and supported
+     */
+    @PluginMethod
+    public void getBluetoothState(PluginCall call) {
+        boolean isEnabled = checkBluetoothState();
+        JSObject ret = new JSObject();
+        ret.put("enabled", isEnabled);
+        ret.put("supported", bluetoothAdapter != null);
+        call.resolve(ret);
+    }
+
+    /**
+     * Proactively request the user to turn on Bluetooth (critical in Airplane Mode)
+     */
+    @PluginMethod
+    public void enableBluetooth(PluginCall call) {
+        try {
+            if (checkBluetoothState()) {
+                JSObject ret = new JSObject();
+                ret.put("enabled", true);
+                ret.put("prompted", false);
+                call.resolve(ret);
+                return;
+            }
+
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            if (getActivity() != null) {
+                getActivity().startActivity(enableBtIntent);
+            } else {
+                enableBtIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(enableBtIntent);
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("enabled", false);
+            ret.put("prompted", true);
+            call.resolve(ret);
+        } catch (SecurityException se) {
+            Log.w(TAG, "BLUETOOTH_CONNECT permission required to enable Bluetooth: " + se.getMessage());
+            requestPermissionForAlias("bluetooth", call, "permissionCallbackForEnable");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to trigger Bluetooth enable intent: " + e.getMessage());
+            call.reject("Could not prompt Bluetooth enable: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void permissionCallbackForEnable(PluginCall call) {
+        enableBluetooth(call);
     }
 
     /**
@@ -94,26 +155,38 @@ public class BleMeshPlugin extends Plugin {
         }
 
         if (!checkBluetoothState()) {
-            Log.w(TAG, "Bluetooth is disabled or unavailable on this device.");
+            Log.w(TAG, "Bluetooth is disabled or unavailable on this device (Airplane Mode).");
+            // Automatically prompt the user to enable Bluetooth so distress beacon can transmit
+            try {
+                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                if (getActivity() != null) {
+                    getActivity().startActivity(enableBtIntent);
+                } else {
+                    enableBtIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(enableBtIntent);
+                }
+            } catch (Exception ex) {
+                Log.w(TAG, "Could not prompt Bluetooth enable intent: " + ex.getMessage());
+            }
+
             JSObject ret = new JSObject();
             ret.put("success", false);
             ret.put("error", "BLUETOOTH_DISABLED");
-            ret.put("message", "Bluetooth radio is disabled. Please turn Bluetooth ON (even in Airplane Mode).");
+            ret.put("message", "Bluetooth is disabled. Please turn Bluetooth ON (even in Airplane Mode) to broadcast BLE distress beacon.");
             call.resolve(ret);
             return;
         }
 
         try {
-            if (advertiser == null) {
-                advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
-            }
+            // Re-fetch advertiser in case Bluetooth was just enabled
+            advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
 
             if (advertiser == null) {
                 Log.w(TAG, "BLE Hardware Advertising is not supported by this chipset.");
                 JSObject ret = new JSObject();
                 ret.put("success", false);
                 ret.put("error", "NOT_SUPPORTED");
-                ret.put("message", "BLE Advertising not supported on this chipset.");
+                ret.put("message", "BLE Advertising not supported on this device chipset.");
                 call.resolve(ret);
                 return;
             }
@@ -133,7 +206,7 @@ public class BleMeshPlugin extends Plugin {
                 .setTimeout(0) // Run continuously until stopped
                 .build();
 
-            // Encode payload to max 24 bytes for standard BLE advertisement compatibility
+            // Encode payload to max 20 bytes for primary manufacturer data to stay strictly <= 31-byte legacy BLE PDU limit
             byte[] rawBytes = payload.getBytes(StandardCharsets.UTF_8);
             byte[] truncatedBytes;
             if (rawBytes.length > 20) {
@@ -143,10 +216,15 @@ public class BleMeshPlugin extends Plugin {
                 truncatedBytes = rawBytes;
             }
 
+            // Primary Advertisement Data: Keep strictly minimal (Manufacturer ID + 20 byte payload = 24 bytes total)
             AdvertiseData data = new AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
                 .addManufacturerData(MANUFACTURER_ID_RAKSHIKA, truncatedBytes)
+                .build();
+
+            // Scan Response Data: Contains the 128-bit Rakshika Service UUID to prevent primary PDU overflow
+            AdvertiseData scanResponse = new AdvertiseData.Builder()
                 .addServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID))
                 .build();
 
@@ -166,7 +244,7 @@ public class BleMeshPlugin extends Plugin {
                 }
             };
 
-            advertiser.startAdvertising(settings, data, advertiseCallback);
+            advertiser.startAdvertising(settings, data, scanResponse, advertiseCallback);
 
             JSObject ret = new JSObject();
             ret.put("success", true);

@@ -73,12 +73,14 @@ The application entry point is [src/App.tsx](file:///Users/ritesh/Documents/Raks
 | `/welcome` | `LandingPage.tsx` | Public | User landing page with 3D feature cards, safety features overview |
 | `/login` | `LoginScreen.tsx` | Public | User login via Firebase Auth or instant Demo Bypass |
 | `/register` | `RegisterScreen.tsx` | Public | 4-step user registration wizard (Personal info, Medical info, Locations, Emergency contacts) |
-| `/` | `Home.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | User Dashboard (SOS button, siren toggle, video record toggle, Guardian mode, fake call trigger) |
+| `/` | `Home.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | User Dashboard (SOS button, siren toggle, video record toggle, Guardian mode, fake call trigger, live GPS reverse-geocoded header, Zero-Net Offline Emergency Chat & Coordinates trigger) |
 | `/map` | `MapScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | Safe Walk GIS Map (search, route calculation, offline maps, trip simulator; category tag chips removed) |
 | `/ai` | `AiChatScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | Rakshika AI Guardian chat with GPS coordinate anchoring and live safe havens |
 | `/community` | `CommunityScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | Nearby verified volunteers list with simulated live distance and area alert broadcast |
 | `/profile` | `ProfileScreen.tsx` (in `AppLayout`) | Protected (`ProtectedRoute`) | User safety profile, safety score, emergency contacts management, permission toggles, logout |
 | `/sos` | `SosScreen.tsx` | Protected (`ProtectedRoute`) | Fullscreen SOS trigger: 1.5s press-and-hold, 3s countdown, auto SMS, video recording, Firestore incident creation |
+| `/history` | `EvidenceVaultScreen.tsx` | Protected (`ProtectedRoute`) | Forensic Evidence Vault & Incident Dossiers (video playback, SHA-256 hash manifest, print legal certificate) |
+| `/history/:id` | `EvidenceVaultScreen.tsx` | Protected (`ProtectedRoute`) | Direct link to specific incident dossier and video playback |
 | `/fake-call` | `FakeCallScreen.tsx` | Protected (`ProtectedRoute`) | Fullscreen iOS-style fake incoming call with realistic ring, vibration pattern, and call timer |
 | `/volunteer/intro` | `VolunteerIntroScreen.tsx` | Public | Volunteer portal onboarding & mission statement |
 | `/volunteer/register` | `VolunteerRegistrationScreen.tsx` | Public | Volunteer registration (Name, Phone, Email, Password, Organization, Volunteer Type) |
@@ -198,6 +200,7 @@ Rakshika/
     │   │   ├── ContactCard.tsx      # Contact item card with call shortcut and priority tag
     │   │   ├── EmergencyCard.tsx    # SOS summary card
     │   │   ├── EmergencyContactsSection.tsx # Expandable contact manager on profile & home
+    │   │   ├── OfflineEmergencyModal.tsx # Zero-Net Offline Emergency Chat & GPS coordinates dispatch (Cellular SMS, BLE mesh, 1-tap templates)
     │   │   ├── PermissionBanner.tsx # Warning banner when location or SMS permissions are denied
     │   │   └── SOSBanner.tsx        # Top urgent alert banner during active SOS
     │   ├── settings/
@@ -213,6 +216,7 @@ Rakshika/
     └── pages/
         ├── AiChatScreen.tsx         # AI Safety Advisor with GPS anchor and quick action chips
         ├── CommunityScreen.tsx      # Verified community volunteers locator and broadcast trigger
+        ├── EvidenceVaultScreen.tsx  # Forensic Evidence Vault & Legal Incident Dossier (SHA-256 manifest, video player, police certificate)
         ├── FakeCallScreen.tsx       # Fullscreen realistic fake call generator with vibration
         ├── Home.tsx                 # Main safety dashboard (SOS, Siren, Record, Guardian mode)
         ├── LandingPage.css          # 3D landing page styling and glowing animations
@@ -346,6 +350,27 @@ Rakshika/
    - In no-internet environments, emergency alerts are relayed device-to-device to nearby responders within Bluetooth range.
 4. **SMS Fallback Routing:**
    - If an active responder accepts or resolves an alert while disconnected from cellular data, `smsFallbackService.ts` formats an SMS payload (`RAKSHIKA SOS | Action: ACCEPT | SOS: <id> | Vol: <volId>`) dispatched to an emergency gateway number.
+5. **Zero-Net Offline Emergency Chat & Coordinates Dispatch (`OfflineEmergencyModal.tsx`):**
+   - Directly accessible from the Home dashboard header, replacing the legacy percentage badge with a high-visibility "Zero-Net Offline Chat" trigger.
+   - Automatically stamps hardware GPS coordinates (`lat`, `lng`, accuracy lock) and reverse-geocoded landmark even with no cellular data or Wi-Fi.
+   - **Compact Horizontal Scrollable Quick SOS:** Replaced vertical grid with a horizontal scrollable chip bar directly above the text input (`🚨 In Danger`, `⚠️ Being Followed`, `🚑 Medical Help`, `🔋 Low Battery`, `📍 Send Coordinates`), maximizing vertical room for the live chat feed.
+   - **Airplane Mode & BLE PDU Optimization (`BleMeshPlugin.java`):**
+     - Fixed legacy 31-byte Bluetooth advertising PDU limit overflow by moving 128-bit Service UUIDs to the `ScanResponse` packet and preserving manufacturer distress payload within primary PDU.
+     - Added native Airplane Mode Bluetooth detection (`getBluetoothState`) and 1-tap `BluetoothAdapter.ACTION_REQUEST_ENABLE` intent (`enableBluetooth`) so users can reactivate BLE radio even while cellular antennas remain disabled.
+   - Dispatches emergency coordinates and customizable distress messages via dual channels:
+     - Direct cellular SMS (`SmsPlugin.java` on Android / native SMS intent on mobile web) to selected emergency contacts and Police 112.
+     - Over-the-air peer-to-peer Bluetooth beacon advertising (`airTagMeshRelayService.broadcastSosBeacon`).
+   - Persists a complete offline dispatch chat history in `localStorage` under `rakshika_offline_distress_chat`.
+
+### 6.6 Forensic Evidence Vault & Incident Dossier (`EvidenceVaultScreen.tsx`, `evidencePlaybackService.ts`)
+
+1. **Forensic Integrity & Chain of Custody:**
+   - Automatically archives recorded video segments, GPS telemetry breadcrumbs, responder logs, and device timestamps upon SOS resolution.
+   - Generates SHA-256 forensic hashes for master video recordings and event logs to verify tamper-proof evidentiary status.
+   - Provides a one-click printable **Legal Police Certificate** (`window.print()`) formatted for Indian law enforcement (Section 65B Indian Evidence Act / Bharatiya Sakshya Adhiniyam compliance).
+2. **High-Contrast UI & Readability Design Standard:**
+   - **Dashboard Entry Card (`Home.tsx`):** Built with an opaque high-contrast surface (`bg-white/95 border-2 border-red-200/90 hover:border-red-400 shadow-md`), deep charcoal headings (`text-gray-950 font-bold`), high-contrast body text (`text-gray-700 font-medium`), vibrant crimson badge (`from-red-500 to-rose-600`), and prominent call-to-action button (`bg-red-600 text-white font-bold`).
+   - **Vault Screen (`EvidenceVaultScreen.tsx`):** Dark forensic workspace with high-contrast text (`text-slate-200`, `text-slate-300 font-bold`), distinct status tags, and crisp hash displays to guarantee effortless legibility under all lighting conditions.
 
 ---
 

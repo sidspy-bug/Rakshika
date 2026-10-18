@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Coords } from "../types/gis";
 import { Geolocation } from "@capacitor/geolocation";
+import { Capacitor } from "@capacitor/core";
 
 // Default coordinate fallback if no location has ever been fixed
 export const DEFAULT_COORDS: Coords = {
@@ -58,88 +59,101 @@ export function useUserLocation() {
 
   useEffect(() => {
     let cancelled = false;
+    const isNative = Capacitor.isNativePlatform();
 
-    // 1. Request immediate high-accuracy position via Capacitor Native / Browser
-    Geolocation.getCurrentPosition({
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 3000,
-    })
-      .then((position) => {
-        if (!cancelled && position?.coords) {
-          updateLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        }
-      })
-      .catch((err) => {
-        console.warn("Capacitor getCurrentPosition failed, falling back to browser watch:", err);
-        // Fallback to browser HTML5 Geolocation
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              if (!cancelled) {
-                updateLocation({
-                  lat: pos.coords.latitude,
-                  lng: pos.coords.longitude,
-                });
-              }
-            },
-            (err) => {
-              if (!cancelled) setError(err.message);
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-          );
-        }
-      });
-
-    // 2. Setup continuous high-accuracy location watch
-    const setupWatch = async () => {
-      try {
-        const id = await Geolocation.watchPosition(
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0,
-          },
-          (position, err) => {
-            if (err) {
-              console.warn("Capacitor watchPosition error:", err);
-              return;
-            }
-            if (!cancelled && position?.coords) {
-              updateLocation({
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-              });
-            }
+    if (!isNative && typeof navigator !== "undefined" && navigator.geolocation) {
+      // Direct Web HTML5 Geolocation for instant response
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (!cancelled && pos?.coords) {
+            updateLocation({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            });
           }
-        );
-        watchIdRef.current = id;
-      } catch (err) {
-        console.warn("Setting up Capacitor watch failed, fallback to browser watch:", err);
-        if (navigator.geolocation) {
-          const browserWatchId = navigator.geolocation.watchPosition(
-            (pos) => {
-              if (!cancelled) {
-                updateLocation({
-                  lat: pos.coords.latitude,
-                  lng: pos.coords.longitude,
-                });
-              }
-            },
-            (err) => {
-              if (!cancelled) setError(err.message);
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-          );
-          watchIdRef.current = browserWatchId;
-        }
-      }
-    };
+        },
+        (err) => {
+          if (!cancelled) {
+            console.warn("Web getCurrentPosition error:", err);
+            setError(err.message);
+            setLoading(false);
+          }
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 3000 }
+      );
 
-    setupWatch();
+      const browserWatchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (!cancelled && pos?.coords) {
+            updateLocation({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            });
+          }
+        },
+        (err) => {
+          if (!cancelled) setError(err.message);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
+      );
+      watchIdRef.current = browserWatchId;
+    } else {
+      // Native Android / Capacitor Geolocation
+      Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 3000,
+      })
+        .then((position) => {
+          if (!cancelled && position?.coords) {
+            updateLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn("Capacitor getCurrentPosition failed, fallback to browser:", err);
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                if (!cancelled) {
+                  updateLocation({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                  });
+                }
+              },
+              (e) => {
+                if (!cancelled) setError(e.message);
+              },
+              { enableHighAccuracy: true, timeout: 8000 }
+            );
+          }
+        });
+
+      Geolocation.watchPosition(
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 1000,
+        },
+        (position, err) => {
+          if (err) {
+            console.warn("Capacitor watchPosition error:", err);
+            return;
+          }
+          if (!cancelled && position?.coords) {
+            updateLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+          }
+        }
+      ).then((id) => {
+        watchIdRef.current = id;
+      });
+    }
 
     return () => {
       cancelled = true;

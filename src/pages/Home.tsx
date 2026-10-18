@@ -1,9 +1,27 @@
 import { useState, useRef, useEffect } from "react";
-import { ShieldAlert, MapPin, PhoneCall, Mic, Siren, Square, CheckCircle2 } from "lucide-react";
+import { ShieldAlert, MapPin, PhoneCall, Mic, Siren, Square, CheckCircle2, Radio } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { GlassCard } from "../components/ui/GlassCard";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUserLocation } from "../hooks/useUserLocation";
+import { reverseGeocode } from "../services/gisService";
+import { OfflineEmergencyModal } from "../components/emergency/OfflineEmergencyModal";
+
+function formatCompactAddress(fullAddress: string): string {
+  if (!fullAddress) return "";
+  if (fullAddress.startsWith("Location")) return fullAddress;
+
+  const parts = fullAddress.split(",").map((p) => p.trim()).filter(Boolean);
+  // Filter out postal codes (5-6 digits), "India", "Bharat"
+  const filtered = parts.filter(
+    (p) => !/^\d{5,6}$/.test(p) && !/^(india|bharat)$/i.test(p)
+  );
+  if (filtered.length >= 2) {
+    return `${filtered[0]}, ${filtered[1]}`;
+  }
+  return filtered[0] || parts[0] || fullAddress;
+}
 
 function Toast({ message }: { message: string }) {
   return (
@@ -21,6 +39,62 @@ function Toast({ message }: { message: string }) {
 export function Home() {
   const navigate = useNavigate();
   const [guardianMode, setGuardianMode] = useState(false);
+  const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
+
+  // User Profile Name
+  const [userName] = useState<string>(() => {
+    try {
+      const profileRaw = localStorage.getItem("user_profile");
+      if (profileRaw) {
+        const p = JSON.parse(profileRaw);
+        if (p.fullName) return p.fullName.trim().split(" ")[0];
+        if (p.name) return p.name.trim().split(" ")[0];
+      }
+    } catch {}
+    return "Rakshika";
+  });
+
+  // Live Location & Reverse Geocoding
+  const { location, loading: isLocationLoading } = useUserLocation();
+  const [address, setAddress] = useState<string>(() => {
+    try {
+      return (
+        localStorage.getItem("rakshika_user_last_address_compact") ||
+        localStorage.getItem("rakshika_user_last_address") ||
+        ""
+      );
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    if (!location?.lat || !location?.lng) return;
+
+    let isMounted = true;
+    reverseGeocode(location)
+      .then((fullAddr) => {
+        if (!isMounted) return;
+        if (fullAddr) {
+          const compact = formatCompactAddress(fullAddr);
+          setAddress(compact);
+          try {
+            localStorage.setItem("rakshika_user_last_address_compact", compact);
+            localStorage.setItem("rakshika_user_last_address", fullAddr);
+          } catch {}
+        }
+      })
+      .catch((err) => {
+        console.warn("Home reverse geocode error:", err);
+        if (isMounted && !address) {
+          setAddress(`${location.lat.toFixed(3)}°N, ${location.lng.toFixed(3)}°E`);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [location?.lat, location?.lng]);
   
   // Siren state
   const [isSirenPlaying, setIsSirenPlaying] = useState(false);
@@ -153,15 +227,69 @@ export function Home() {
       </AnimatePresence>
       {/* Header */}
       <header className="flex justify-between items-center mt-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Stay Safe, <span className="text-[#D32F2F]">Rakshika</span></h1>
-          <p className="text-sm text-gray-500 font-medium flex items-center gap-1 mt-1">
-            <MapPin className="w-4 h-4 text-green-500" /> Connecting to location...
-          </p>
+        <div className="min-w-0 pr-2">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            Stay Safe, <span className="text-[#D32F2F]">{userName}</span>
+          </h1>
+          {address ? (
+            <p
+              className="text-sm font-semibold text-gray-800 flex items-center gap-1.5 mt-1 cursor-pointer hover:text-red-600 transition-colors group"
+              title={`Live GPS location: ${address} (Click to open map)`}
+              onClick={() => navigate("/map")}
+            >
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <MapPin className="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+              <span className="truncate max-w-[240px]">{address}</span>
+            </p>
+          ) : location ? (
+            <p
+              className="text-sm font-medium text-gray-700 flex items-center gap-1.5 mt-1 cursor-pointer hover:text-red-600 transition-colors"
+              onClick={() => navigate("/map")}
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="text-xs text-gray-600">
+                GPS Locked ({location.lat.toFixed(3)}°N, {location.lng.toFixed(3)}°E)
+              </span>
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500 font-medium flex items-center gap-1.5 mt-1">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+              <MapPin className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-xs text-gray-500">Acquiring GPS fix...</span>
+            </p>
+          )}
         </div>
-        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center border-2 border-green-500 shadow-sm">
-          <span className="text-green-700 font-bold text-sm">98%</span>
-        </div>
+        {/* Offline Emergency Comms & Distress Chat Trigger */}
+        <button
+          onClick={() => setIsOfflineModalOpen(true)}
+          className="shrink-0 flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white rounded-2xl shadow-md shadow-red-600/30 active:scale-95 transition-all text-xs font-bold border border-red-400/30 group"
+          title="Offline Emergency Chat & Coordinates (Zero Internet Mode)"
+        >
+          <div className="relative flex items-center justify-center">
+            <Radio className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+            <span className="absolute -top-1 -right-1 flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+            </span>
+          </div>
+          <div className="text-left leading-tight hidden xs:block sm:block">
+            <div className="text-[9px] uppercase tracking-wider text-red-200 font-extrabold flex items-center gap-1">
+              Zero-Net
+            </div>
+            <div className="text-xs font-black">Offline Chat</div>
+          </div>
+          <span className="xs:hidden sm:hidden text-xs font-bold">Offline</span>
+        </button>
       </header>
 
       {/* Main SOS Action */}
@@ -216,23 +344,23 @@ export function Home() {
       {/* Forensic Evidence Vault Card */}
       <section className="mt-1">
         <GlassCard
-          className="p-4 bg-gradient-to-r from-red-950/40 to-black/60 border border-red-500/30 hover:border-red-500/60 transition-all cursor-pointer flex items-center justify-between"
+          className="p-4 bg-white/95 border-2 border-red-200/90 hover:border-red-400 shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-between gap-3 group"
           onClick={() => navigate("/history")}
         >
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 shadow-md shadow-red-500/30 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
               <ShieldAlert className="w-6 h-6" />
             </div>
-            <div>
-              <h4 className="font-bold text-sm text-gray-900 flex items-center gap-2">
+            <div className="min-w-0">
+              <h4 className="font-bold text-sm text-gray-950 flex items-center gap-2">
                 Evidence Vault & Incident Dossier
               </h4>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-gray-700 font-medium mt-0.5 leading-relaxed">
                 View recorded videos, SHA-256 manifests & export police certificates
               </p>
             </div>
           </div>
-          <span className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100 shrink-0">
+          <span className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3.5 py-2 rounded-xl shadow-sm shadow-red-600/30 shrink-0 transition-colors flex items-center gap-1">
             Open Vault →
           </span>
         </GlassCard>
@@ -255,6 +383,13 @@ export function Home() {
           </Button>
         </div>
       </section>
+      {/* Offline Emergency Comms Modal */}
+      <OfflineEmergencyModal
+        isOpen={isOfflineModalOpen}
+        onClose={() => setIsOfflineModalOpen(false)}
+        currentCoords={location}
+        currentAddress={address}
+      />
     </div>
   );
 }

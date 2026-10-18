@@ -160,7 +160,7 @@ export function EvidenceVaultScreen() {
               <ShieldAlert className="w-6 h-6 text-red-500" />
               FORENSIC EVIDENCE VAULT
             </h1>
-            <p className="text-xs text-slate-400 font-medium">
+            <p className="text-xs text-slate-200 font-medium">
               Verified Electronic Evidence • Unified Video Timelines • Section 65B Certified
             </p>
           </div>
@@ -273,7 +273,7 @@ export function EvidenceVaultScreen() {
               <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
                   <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Incident Dossier ID</span>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">Incident Dossier ID</span>
                     <h3 className="text-lg font-black text-white font-mono">{dossier.incident.id}</h3>
                   </div>
 
@@ -290,8 +290,8 @@ export function EvidenceVaultScreen() {
                         <span>Cloud Video Available</span>
                       </a>
                     ) : (
-                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5">
-                        <HardDrive className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-800 text-slate-200 border border-slate-700 flex items-center gap-1.5">
+                        <HardDrive className="w-3.5 h-3.5 text-slate-300" />
                         <span>{cloudAuthService.isCloudSyncEnabled() ? "On-Device Vault" : "Demo Mode Vault"}</span>
                       </span>
                     )}
@@ -313,19 +313,19 @@ export function EvidenceVaultScreen() {
                 {/* Metadata Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block font-bold">Triggered Time</span>
+                    <span className="text-slate-300 text-[11px] block font-bold">Triggered Time</span>
                     <span className="font-black text-white">{new Date(dossier.incident.activatedAt).toLocaleTimeString()}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block font-bold">Resolution Status</span>
+                    <span className="text-slate-300 text-[11px] block font-bold">Resolution Status</span>
                     <span className="font-black text-white">{dossier.incident.status}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block font-bold">Evidence Duration</span>
+                    <span className="text-slate-300 text-[11px] block font-bold">Evidence Duration</span>
                     <span className="font-black text-cyan-400">{dossier.playableChunks.length * 3}s Continuous</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800">
-                    <span className="text-slate-400 text-[10px] block font-bold">Total File Size</span>
+                    <span className="text-slate-300 text-[11px] block font-bold">Total File Size</span>
                     <span className="font-black text-amber-300">{(dossier.totalBytes / 1024 / 1024).toFixed(2)} MB</span>
                   </div>
                 </div>
