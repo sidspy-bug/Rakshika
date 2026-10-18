@@ -60,6 +60,7 @@ public class BleMeshPlugin extends Plugin {
     private ScanCallback scanCallback;
     private boolean isAdvertising = false;
     private boolean isScanning = false;
+    private int currentScanMode = ScanSettings.SCAN_MODE_LOW_POWER;
 
     @Override
     public void load() {
@@ -150,6 +151,7 @@ public class BleMeshPlugin extends Plugin {
     @PluginMethod
     public void startAdvertising(PluginCall call) {
         String payload = call.getString("payload");
+        String message = call.getString("message", "");
         if (payload == null || payload.isEmpty()) {
             call.reject("Must provide payload string");
             return;
@@ -245,10 +247,20 @@ public class BleMeshPlugin extends Plugin {
                 .addManufacturerData(MANUFACTURER_ID_RAKSHIKA, truncatedBytes)
                 .build();
 
-            // Scan Response Data: Contains the 128-bit Rakshika Service UUID to prevent primary PDU overflow
-            AdvertiseData scanResponse = new AdvertiseData.Builder()
-                .addServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID))
-                .build();
+            // Scan Response Data: Contains the 128-bit Rakshika Service UUID to prevent primary PDU overflow, plus emergency message text
+            AdvertiseData.Builder scanResponseBuilder = new AdvertiseData.Builder()
+                .addServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID));
+
+            if (message != null && !message.trim().isEmpty()) {
+                byte[] msgBytes = message.trim().getBytes(StandardCharsets.UTF_8);
+                if (msgBytes.length > 26) {
+                    byte[] truncated = new byte[26];
+                    System.arraycopy(msgBytes, 0, truncated, 0, 26);
+                    msgBytes = truncated;
+                }
+                scanResponseBuilder.addServiceData(new ParcelUuid(RAKSHIKA_SERVICE_UUID), msgBytes);
+            }
+            AdvertiseData scanResponse = scanResponseBuilder.build();
 
             advertiseCallback = new AdvertiseCallback() {
                 @Override
@@ -368,19 +380,10 @@ public class BleMeshPlugin extends Plugin {
                 isScanning = false;
             }
 
-            ScanSettings scanSettings = new ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .setReportDelay(0)
-                .build();
-
-            List<ScanFilter> filters = new ArrayList<>();
-            // Match Rakshika Service UUID or Manufacturer Data
-            filters.add(new ScanFilter.Builder()
-                .setServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID))
-                .build());
-            filters.add(new ScanFilter.Builder()
-                .setManufacturerData(MANUFACTURER_ID_RAKSHIKA, new byte[]{})
-                .build());
+            int requestedMode = call.getBoolean("lowPower", true) ? ScanSettings.SCAN_MODE_LOW_POWER : ScanSettings.SCAN_MODE_BALANCED;
+            currentScanMode = requestedMode;
+            ScanSettings scanSettings = buildScanSettings(currentScanMode);
+            List<ScanFilter> filters = buildScanFilters();
 
             scanCallback = new ScanCallback() {
                 @Override
@@ -390,20 +393,31 @@ public class BleMeshPlugin extends Plugin {
 
                     ScanRecord record = result.getScanRecord();
                     byte[] manuData = record.getManufacturerSpecificData(MANUFACTURER_ID_RAKSHIKA);
+                    byte[] serviceData = record.getServiceData(new ParcelUuid(RAKSHIKA_SERVICE_UUID));
                     
                     String payloadStr = null;
                     if (manuData != null && manuData.length > 0) {
                         payloadStr = "rk_" + bytesToHex(manuData);
                     }
 
+                    String msgStr = null;
+                    if (serviceData != null && serviceData.length > 0) {
+                        try {
+                            msgStr = new String(serviceData, StandardCharsets.UTF_8).trim();
+                        } catch (Exception ignored) {}
+                    }
+
                     if (payloadStr != null && !payloadStr.isEmpty()) {
-                        Log.i(TAG, "⚡ [BLE Native] Intercepted over-the-air emergency beacon! RSSI: " + result.getRssi() + "dBm, Payload: " + payloadStr);
+                        Log.i(TAG, "⚡ [BLE Native] Intercepted over-the-air emergency beacon! RSSI: " + result.getRssi() + "dBm, Payload: " + payloadStr + (msgStr != null && !msgStr.isEmpty() ? (", Msg: " + msgStr) : ""));
                         
                         JSObject eventData = new JSObject();
                         eventData.put("ciphertext", payloadStr);
                         eventData.put("rssi", result.getRssi());
                         eventData.put("deviceAddress", result.getDevice() != null ? result.getDevice().getAddress() : "UNKNOWN");
                         eventData.put("timestamp", System.currentTimeMillis());
+                        if (msgStr != null && !msgStr.isEmpty()) {
+                            eventData.put("message", msgStr);
+                        }
 
                         notifyListeners("onBeaconDetected", eventData);
                     }
@@ -418,10 +432,11 @@ public class BleMeshPlugin extends Plugin {
 
             scanner.startScan(filters, scanSettings, scanCallback);
             isScanning = true;
-            Log.i(TAG, "🔍 [BLE Native] Hardware BLE passive scanner active!");
+            Log.i(TAG, "🔍 [BLE Native] Hardware BLE passive scanner active! (Mode: " + (currentScanMode == ScanSettings.SCAN_MODE_LOW_POWER ? "LOW_POWER/BATTERY_SAVER" : "BALANCED") + ")");
 
             JSObject ret = new JSObject();
             ret.put("success", true);
+            ret.put("lowPower", currentScanMode == ScanSettings.SCAN_MODE_LOW_POWER);
             call.resolve(ret);
         } catch (SecurityException se) {
             Log.e(TAG, "Scan permission missing: " + se.getMessage());
@@ -430,6 +445,58 @@ public class BleMeshPlugin extends Plugin {
             Log.e(TAG, "Failed to start BLE scan: " + e.getMessage(), e);
             call.reject("BLE Scan error: " + e.getMessage());
         }
+    }
+
+    @Override
+    protected void handleOnPause() {
+        super.handleOnPause();
+        // App went to background or screen turned off: switch to ultra-low-power hardware-filtered scanning to prevent battery drainage
+        switchScanMode(ScanSettings.SCAN_MODE_LOW_POWER);
+    }
+
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        // App returned to foreground: use balanced mode for responsive detection
+        switchScanMode(ScanSettings.SCAN_MODE_BALANCED);
+    }
+
+    private synchronized void switchScanMode(int newMode) {
+        if (!isScanning || scanner == null || scanCallback == null) return;
+        if (currentScanMode == newMode) return;
+        currentScanMode = newMode;
+        try {
+            scanner.stopScan(scanCallback);
+            ScanSettings newSettings = buildScanSettings(newMode);
+            scanner.startScan(buildScanFilters(), newSettings, scanCallback);
+            Log.d(TAG, "Switched BLE scan mode to: " + (newMode == ScanSettings.SCAN_MODE_LOW_POWER ? "LOW_POWER (Duty-cycle battery saver)" : "BALANCED"));
+        } catch (Exception ex) {
+            Log.w(TAG, "Failed to switch scan mode: " + ex.getMessage());
+        }
+    }
+
+    private ScanSettings buildScanSettings(int mode) {
+        ScanSettings.Builder builder = new ScanSettings.Builder()
+            .setScanMode(mode)
+            .setReportDelay(0);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            builder.setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE);
+            builder.setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT);
+            builder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES);
+        }
+        return builder.build();
+    }
+
+    private List<ScanFilter> buildScanFilters() {
+        List<ScanFilter> filters = new ArrayList<>();
+        // Match Rakshika Service UUID or Manufacturer Data in hardware
+        filters.add(new ScanFilter.Builder()
+            .setServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID))
+            .build());
+        filters.add(new ScanFilter.Builder()
+            .setManufacturerData(MANUFACTURER_ID_RAKSHIKA, new byte[]{})
+            .build());
+        return filters;
     }
 
     @PermissionCallback

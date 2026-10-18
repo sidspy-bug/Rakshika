@@ -420,6 +420,7 @@ export class DispatchEngine {
         timestamp: new Date().toISOString(),
         urgency: "CRITICAL",
         hopCount: 0,
+        message: "EMERGENCY: One-tap SOS Triggered!",
       });
 
       channel.status = "SUCCESS";

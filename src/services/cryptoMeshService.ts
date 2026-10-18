@@ -16,6 +16,48 @@ export interface SosBeaconPayload {
   urgency: "HIGH" | "CRITICAL";
   hopCount: number;
   userIdHash?: string;
+  message?: string;
+  category?: string;
+}
+
+export interface CategoryInfo {
+  code: number;
+  category: string;
+  defaultMessage: string;
+}
+
+export function getEmergencyCategoryCode(input?: string): number {
+  if (!input) return 0;
+  const lower = input.toLowerCase();
+  if (/doctor|medic|hospital|ambulance|bleed|injur|pain|wound|faint|pregnant|breath/i.test(lower)) return 1;
+  if (/police|attack|weapon|gun|knife|kill|rob|thief|danger|threat|violence|assault|rape/i.test(lower)) return 2;
+  if (/follow|stalk|creep|shadow|behind me|chasing|watching/i.test(lower)) return 3;
+  if (/accident|crash|car|bike|vehicle|hit and run|collision/i.test(lower)) return 4;
+  if (/fire|smoke|burn|gas leak|explosion/i.test(lower)) return 5;
+  if (/lost|stranded|trapped|stuck|dark|alone/i.test(lower)) return 6;
+  return 7;
+}
+
+export function getCategoryFromCode(code: number): CategoryInfo {
+  switch (code) {
+    case 1:
+      return { code: 1, category: "MEDICAL", defaultMessage: "MEDICAL EMERGENCY: Need doctor / medical help urgently!" };
+    case 2:
+      return { code: 2, category: "POLICE_DANGER", defaultMessage: "POLICE EMERGENCY: Danger / physical threat detected!" };
+    case 3:
+      return { code: 3, category: "STALKING", defaultMessage: "HELP: Being followed / suspicious persons nearby!" };
+    case 4:
+      return { code: 4, category: "ACCIDENT", defaultMessage: "ACCIDENT: Crash / vehicle emergency assistance required!" };
+    case 5:
+      return { code: 5, category: "FIRE_HAZARD", defaultMessage: "FIRE / HAZARD: Evacuation assistance needed!" };
+    case 6:
+      return { code: 6, category: "STRANDED", defaultMessage: "STRANDED: Trapped / unable to move safely!" };
+    case 7:
+      return { code: 7, category: "CUSTOM", defaultMessage: "URGENT DISTRESS: Offline help beacon dispatched!" };
+    case 0:
+    default:
+      return { code: 0, category: "GENERAL", defaultMessage: "EMERGENCY: Immediate assistance needed!" };
+  }
 }
 
 /** Pre-shared network salt for blind obfuscation (preventing passive BLE sniffers) */
@@ -85,10 +127,11 @@ export async function encryptSosBeacon(payload: SosBeaconPayload): Promise<strin
     const tsSec = Math.floor(new Date(payload.timestamp || Date.now()).getTime() / 1000);
     view.setUint32(12, tsSec);
 
-    // 6. Flags (Urgency & Hop Count)
+    // 6. Flags (Urgency & Hop Count & Emergency Category)
     const urgCode = payload.urgency === "CRITICAL" ? 2 : 1;
     const hopCode = Math.min(payload.hopCount || 0, 7);
-    view.setUint8(16, (urgCode & 0x03) | (hopCode << 2));
+    const catCode = getEmergencyCategoryCode(payload.category || payload.message);
+    view.setUint8(16, (urgCode & 0x03) | ((hopCode & 0x07) << 2) | ((catCode & 0x07) << 5));
 
     // 7. Checksum (XOR of bytes 0..16)
     const bytes = new Uint8Array(buffer);
@@ -119,8 +162,12 @@ export async function encryptSosBeacon(payload: SosBeaconPayload): Promise<strin
 
 /**
  * Decrypts an 18-byte hex beacon back into structured SosBeaconPayload.
+ * Accepts optional over-the-air message from BLE Scan Response service data.
  */
-export async function decryptSosBeacon(ciphertext: string): Promise<SosBeaconPayload | null> {
+export async function decryptSosBeacon(
+  ciphertext: string,
+  overTheAirMessage?: string
+): Promise<SosBeaconPayload | null> {
   try {
     if (!ciphertext || !ciphertext.startsWith("rk_")) return null;
     const hex = ciphertext.slice(3);
@@ -160,6 +207,12 @@ export async function decryptSosBeacon(ciphertext: string): Promise<SosBeaconPay
     const flags = view.getUint8(16);
     const urgency = (flags & 0x03) === 2 ? "CRITICAL" : "HIGH";
     const hopCount = (flags >> 2) & 0x07;
+    const catCode = (flags >> 5) & 0x07;
+    const catInfo = getCategoryFromCode(catCode);
+
+    const message = overTheAirMessage && overTheAirMessage.trim().length > 0
+      ? overTheAirMessage.trim()
+      : catInfo.defaultMessage;
 
     return {
       incidentId: `OFFLINE-${nonce}-${tsSec}`,
@@ -169,6 +222,8 @@ export async function decryptSosBeacon(ciphertext: string): Promise<SosBeaconPay
       urgency,
       hopCount,
       userIdHash: `node_${nonce.toString(16)}`,
+      category: catInfo.category,
+      message,
     };
   } catch (err) {
     console.warn("[CryptoMesh] Beacon decryption error:", err);

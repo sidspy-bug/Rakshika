@@ -282,6 +282,7 @@ ${landmarkText}
         timestamp: new Date().toISOString(),
         urgency: "CRITICAL",
         hopCount: 0,
+        message: textToSend || "EMERGENCY: Immediate assistance needed!",
       });
       bleSuccess = true;
     } catch (bleErr) {

@@ -179,6 +179,8 @@ export default function App() {
     lat?: number;
     lng?: number;
     urgency: string;
+    category?: string;
+    message?: string;
     receivedAt: string;
   } | null>(null);
 
@@ -191,12 +193,14 @@ export default function App() {
           lat: customEvent.detail.lat,
           lng: customEvent.detail.lng,
           urgency: customEvent.detail.urgency || "HIGH",
+          category: customEvent.detail.category || "EMERGENCY",
+          message: customEvent.detail.message,
           receivedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
         });
-        // Auto-dismiss after 10 seconds
+        // Auto-dismiss after 12 seconds
         setTimeout(() => {
           setInterceptedAlert(null);
-        }, 10000);
+        }, 12000);
       }
     };
 
@@ -213,18 +217,30 @@ export default function App() {
           {/* Global High-Visibility BLE Mesh Intercept Alert Banner */}
           {interceptedAlert && (
             <div className="fixed top-4 left-3 right-3 sm:left-6 sm:right-6 max-w-md mx-auto z-[99999] bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white p-3.5 rounded-2xl shadow-2xl border border-red-300/40 flex items-start gap-3 backdrop-blur-md animate-in slide-in-from-top-4 duration-300">
-              <div className="w-9 h-9 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0">
                 <Radio className="w-5 h-5 text-amber-300 animate-pulse" />
               </div>
               <div className="flex-1 min-w-0 pr-1">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                   <p className="font-black text-[11px] uppercase tracking-wider text-amber-200">
                     BLE Mesh Peer SOS Intercepted!
                   </p>
+                  {interceptedAlert.category && (
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-black/40 text-amber-300 border border-amber-400/30">
+                      {interceptedAlert.category}
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-white/95 font-medium mt-0.5 leading-snug">
-                  Detected over-the-air Bluetooth distress beacon from nearby device. Relay to Cloud/Emergency network engaged.
+                {interceptedAlert.message && (
+                  <div className="mt-1.5 bg-black/35 px-2.5 py-1.5 rounded-xl border border-white/20">
+                    <p className="text-xs text-white font-extrabold tracking-wide">
+                      💬 &ldquo;{interceptedAlert.message}&rdquo;
+                    </p>
+                  </div>
+                )}
+                <p className="text-[11px] text-white/90 font-medium mt-1 leading-snug">
+                  Relayed distress beacon to Emergency Cloud Network.
                 </p>
                 {interceptedAlert.lat && interceptedAlert.lng && (
                   <p className="text-[10px] text-amber-100 font-mono mt-1 bg-black/25 px-2 py-0.5 rounded-md inline-block">

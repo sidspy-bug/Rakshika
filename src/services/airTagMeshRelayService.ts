@@ -19,16 +19,16 @@ import {
 } from "./cryptoMeshService";
 
 interface BleMeshNativePlugin {
-  startAdvertising(options: { payload: string }): Promise<{ success: boolean; error?: string; message?: string }>;
+  startAdvertising(options: { payload: string; message?: string }): Promise<{ success: boolean; error?: string; message?: string }>;
   stopAdvertising(): Promise<{ success: boolean }>;
-  startScanning(): Promise<{ success: boolean; error?: string }>;
+  startScanning(options?: { lowPower?: boolean }): Promise<{ success: boolean; lowPower?: boolean; error?: string }>;
   stopScanning(): Promise<{ success: boolean }>;
   enableBluetooth?(): Promise<{ enabled: boolean; prompted?: boolean }>;
   getBluetoothState?(): Promise<{ enabled: boolean; supported: boolean }>;
   requestBlePermissions?(): Promise<{ granted: boolean }>;
   addListener(
     eventName: "onBeaconDetected",
-    listenerFunc: (data: { ciphertext: string; rssi: number; deviceAddress?: string; timestamp: number }) => void
+    listenerFunc: (data: { ciphertext: string; rssi: number; deviceAddress?: string; timestamp: number; message?: string }) => void
   ): Promise<{ remove: () => void }>;
 }
 
@@ -43,6 +43,8 @@ export interface BufferedMeshPacket {
     lng: number;
     timestamp: string;
     urgency: string;
+    category?: string;
+    message?: string;
   };
   capturedAt: string;
   hopCount: number;
@@ -175,11 +177,14 @@ class AirTagMeshRelayService {
     this.activeBeaconCiphertext = ciphertext;
     this.isAdvertising = true;
 
-    console.log(`[AirTagMesh] 📡 Broadcasting encrypted SOS beacon: ${ciphertext.slice(0, 16)}...`);
+    console.log(`[AirTagMesh] 📡 Broadcasting encrypted SOS beacon: ${ciphertext.slice(0, 16)}... (Msg: "${payload.message || "Coordinates Only"}")`);
     
     // 1. Hardware Bluetooth Radio Advertising (Over-The-Air BLE)
     try {
-      const res = await BleMesh.startAdvertising({ payload: ciphertext });
+      const res = await BleMesh.startAdvertising({ 
+        payload: ciphertext,
+        message: payload.message || ""
+      });
       if (res && !res.success) {
         console.warn("[AirTagMesh] BLE advertising notice:", res.error, res.message);
         if (res.error === "BLUETOOTH_DISABLED") {
@@ -201,6 +206,7 @@ class AirTagMeshRelayService {
       channel.postMessage({
         type: "SOS_BEACON_EMIT",
         ciphertext,
+        message: payload.message,
         timestamp: new Date().toISOString(),
       });
     }
@@ -227,7 +233,8 @@ class AirTagMeshRelayService {
    */
   async receiveInterceptedBeacon(
     ciphertext: string,
-    rssi: number = -65
+    rssi: number = -65,
+    overTheAirMessage?: string
   ): Promise<BufferedMeshPacket | null> {
     if (!ciphertext || !ciphertext.startsWith("rk_")) return null;
 
@@ -237,11 +244,14 @@ class AirTagMeshRelayService {
     const existing = buffer.find((p) => p.ciphertext === ciphertext);
     if (existing) {
       existing.rssi = rssi;
+      if (overTheAirMessage && existing.decryptedPreview) {
+        existing.decryptedPreview.message = overTheAirMessage;
+      }
       this.setBuffer(buffer);
       return existing;
     }
 
-    const decrypted = await decryptSosBeacon(ciphertext);
+    const decrypted = await decryptSosBeacon(ciphertext, overTheAirMessage);
     const hopCount = decrypted ? decrypted.hopCount + 1 : 1;
 
     if (hopCount > MAX_HOPS) {
@@ -259,6 +269,8 @@ class AirTagMeshRelayService {
             lng: decrypted.lng,
             timestamp: decrypted.timestamp,
             urgency: decrypted.urgency,
+            category: decrypted.category,
+            message: decrypted.message,
           }
         : undefined,
       capturedAt: new Date().toISOString(),
@@ -274,7 +286,7 @@ class AirTagMeshRelayService {
     console.log(
       `[AirTagMesh] 📥 Intercepted distress beacon in passing! Incident: ${
         decrypted?.incidentId || "Encrypted"
-      } (Hop ${hopCount})`
+      } | Msg: "${decrypted?.message || "None"}" (Hop ${hopCount})`
     );
 
     // Haptic vibration feedback for physical confirmation of over-the-air BLE relay
@@ -294,6 +306,8 @@ class AirTagMeshRelayService {
             lat: decrypted?.lat,
             lng: decrypted?.lng,
             urgency: decrypted?.urgency || "HIGH",
+            category: decrypted?.category || "EMERGENCY",
+            message: decrypted?.message,
           },
         })
       );
@@ -314,15 +328,15 @@ class AirTagMeshRelayService {
     if (this.isScanning) return;
     this.isScanning = true;
 
-    // 1. Hardware Bluetooth Radio Scanner (Over-The-Air BLE)
+    // 1. Hardware Bluetooth Radio Scanner (Over-The-Air BLE in Battery-Saver Low Power Mode)
     try {
-      BleMesh.startScanning().catch((err) =>
+      BleMesh.startScanning({ lowPower: true }).catch((err) =>
         console.warn("[AirTagMesh] Native BLE scan start error:", err)
       );
       BleMesh.addListener("onBeaconDetected", (data) => {
         console.log("[AirTagMesh] ⚡ Native BLE beacon received over the air:", data);
         if (data.ciphertext && data.ciphertext !== this.activeBeaconCiphertext) {
-          this.receiveInterceptedBeacon(data.ciphertext, data.rssi || -60);
+          this.receiveInterceptedBeacon(data.ciphertext, data.rssi || -60, data.message);
         }
       }).catch((err) => console.warn("[AirTagMesh] Native BLE listener add error:", err));
     } catch (nativeErr) {
@@ -336,7 +350,7 @@ class AirTagMeshRelayService {
         if (event.data?.type === "SOS_BEACON_EMIT" && event.data?.ciphertext) {
           // Do not self-intercept our own active beacon
           if (event.data.ciphertext !== this.activeBeaconCiphertext) {
-            this.receiveInterceptedBeacon(event.data.ciphertext, -55);
+            this.receiveInterceptedBeacon(event.data.ciphertext, -55, event.data.message);
           }
         }
       };
@@ -400,6 +414,8 @@ class AirTagMeshRelayService {
             lat: decrypted?.lat || null,
             lng: decrypted?.lng || null,
             urgency: decrypted?.urgency || "HIGH",
+            category: decrypted?.category || "EMERGENCY",
+            message: decrypted?.message || null,
             originalTimestamp: decrypted?.timestamp || null,
             capturedAt: packet.capturedAt,
             relayedAt: new Date().toISOString(),
