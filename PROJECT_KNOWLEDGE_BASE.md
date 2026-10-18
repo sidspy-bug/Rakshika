@@ -352,12 +352,17 @@ Rakshika/
    - If an active responder accepts or resolves an alert while disconnected from cellular data, `smsFallbackService.ts` formats an SMS payload (`RAKSHIKA SOS | Action: ACCEPT | SOS: <id> | Vol: <volId>`) dispatched to an emergency gateway number.
 5. **Zero-Net Offline Emergency Chat & Coordinates Dispatch (`OfflineEmergencyModal.tsx`):**
    - Directly accessible from the Home dashboard header, replacing the legacy percentage badge with a high-visibility "Zero-Net Offline Chat" trigger.
-   - Automatically stamps hardware GPS coordinates (`lat`, `lng`, accuracy lock) and reverse-geocoded landmark even with no cellular data or Wi-Fi.
-   - **Compact Horizontal Scrollable Quick SOS:** Replaced vertical grid with a horizontal scrollable chip bar directly above the text input (`🚨 In Danger`, `⚠️ Being Followed`, `🚑 Medical Help`, `🔋 Low Battery`, `📍 Send Coordinates`), maximizing vertical room for the live chat feed.
-   - **Airplane Mode & BLE PDU Optimization (`BleMeshPlugin.java`):**
-     - Fixed legacy 31-byte Bluetooth advertising PDU limit overflow by moving 128-bit Service UUIDs to the `ScanResponse` packet and preserving manufacturer distress payload within primary PDU.
-     - Added native Airplane Mode Bluetooth detection (`getBluetoothState`) and 1-tap `BluetoothAdapter.ACTION_REQUEST_ENABLE` intent (`enableBluetooth`) so users can reactivate BLE radio even while cellular antennas remain disabled.
-   - Dispatches emergency coordinates and customizable distress messages via dual channels:
+   - **Streamlined, Distraction-Free UI:** Purged the redundant "Live GPS Anchor" card (as accurate GPS coordinates are automatically embedded into every outgoing message timestamp and SMS body) and removed the "Low Battery" template chip.
+   - **Compact Horizontal Quick SOS Chips:** Positioned directly above the chat message input field (`🚨 In Danger / Police`, `⚠️ Being Followed`, `🚑 Medical Help`, `📍 Send Coordinates`), leaving maximum screen estate for the emergency transcript feed.
+   - **Tier 3 BLE Multi-Message Transmission Fix (`cryptoMeshService.ts`, `BleMeshPlugin.java`):**
+     - *Root Cause of Subsequent Message Drop:* Previous versions serialized a 100+ byte JSON payload which `BleMeshPlugin.java` truncated to the first 20 bytes (`rk_` + 17 hex chars). Because messages shared identical prefixes (`{"id":"OFFLINE-...`), successive transmissions produced identical 20-byte ciphertexts, causing receiver Phone B's deduplication buffer (`buffer.find(p => p.ciphertext === ciphertext)`) to silently drop all messages after the first.
+     - *18-Byte Binary Telemetry Struct:* Migrated to a compact 18-byte binary layout: Magic Header (`0x52, 0x4B`) + 16-bit Random Nonce (`2B`) + Scaled Lat (`4B`) + Scaled Lng (`4B`) + Timestamp (`4B`) + Flags/Urgency (`1B`) + XOR Checksum (`1B`).
+     - *Per-Packet Nonce Guarantee:* The 16-bit random nonce guarantees every packet produces unique ciphertext, fitting 100% within BLE primary advertisement PDU without truncation and allowing seamless transmission and receipt of multiple rapid messages.
+     - *Advertiser Cooldown Delay:* Added a 120ms cooldown in `BleMeshPlugin.java` between `stopAdvertising` and `startAdvertising` to prevent Android chipsets from throwing `ADVERTISE_FAILED_ALREADY_STARTED` (error 3).
+     - *Instant Drive-By Simulation:* Integrated `simulateDriveByPass` in `airTagMeshRelayService.ts` allowing instant end-to-end verification of Tier 3 BLE relays without physical relocation.
+   - **Airplane Mode BLE Radio Management:**
+     - Native detection of Bluetooth status via `getBluetoothState` and 1-tap `ACTION_REQUEST_ENABLE` system intent, enabling Bluetooth operation while in Airplane Mode.
+   - Dual-channel emergency dispatch:
      - Direct cellular SMS (`SmsPlugin.java` on Android / native SMS intent on mobile web) to selected emergency contacts and Police 112.
      - Over-the-air peer-to-peer Bluetooth beacon advertising (`airTagMeshRelayService.broadcastSosBeacon`).
    - Persists a complete offline dispatch chat history in `localStorage` under `rakshika_offline_distress_chat`.

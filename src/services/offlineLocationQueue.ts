@@ -17,6 +17,7 @@ export function getQueuedLocations(): QueuedLocation[] {
 }
 
 /**
+ * 
  * Appends a new coordinate update to the offline queue
  */
 export function enqueueLocation(loc: QueuedLocation): void {

@@ -191,12 +191,15 @@ public class BleMeshPlugin extends Plugin {
                 return;
             }
 
-            // Stop existing advertiser if active
-            if (isAdvertising && advertiseCallback != null) {
+            // Stop existing advertiser if active with a brief cooldown to prevent ADVERTISE_FAILED_ALREADY_STARTED
+            if (isAdvertising && advertiser != null && advertiseCallback != null) {
                 try {
                     advertiser.stopAdvertising(advertiseCallback);
                 } catch (Exception ignored) {}
                 isAdvertising = false;
+                try {
+                    Thread.sleep(120);
+                } catch (InterruptedException ignored) {}
             }
 
             AdvertiseSettings settings = new AdvertiseSettings.Builder()
@@ -206,8 +209,18 @@ public class BleMeshPlugin extends Plugin {
                 .setTimeout(0) // Run continuously until stopped
                 .build();
 
-            // Encode payload to max 20 bytes for primary manufacturer data to stay strictly <= 31-byte legacy BLE PDU limit
-            byte[] rawBytes = payload.getBytes(StandardCharsets.UTF_8);
+            // Decode hex ciphertext into raw 18 bytes binary payload
+            byte[] rawBytes;
+            if (payload.startsWith("rk_") && payload.length() >= 39) {
+                try {
+                    rawBytes = hexToBytes(payload.substring(3));
+                } catch (Exception ex) {
+                    rawBytes = payload.getBytes(StandardCharsets.UTF_8);
+                }
+            } else {
+                rawBytes = payload.getBytes(StandardCharsets.UTF_8);
+            }
+
             byte[] truncatedBytes;
             if (rawBytes.length > 20) {
                 truncatedBytes = new byte[20];
@@ -216,7 +229,7 @@ public class BleMeshPlugin extends Plugin {
                 truncatedBytes = rawBytes;
             }
 
-            // Primary Advertisement Data: Keep strictly minimal (Manufacturer ID + 20 byte payload = 24 bytes total)
+            // Primary Advertisement Data: Keep strictly minimal (Manufacturer ID + 18 byte payload = 22 bytes total <= 31 byte limit)
             AdvertiseData data = new AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
@@ -337,7 +350,7 @@ public class BleMeshPlugin extends Plugin {
                     
                     String payloadStr = null;
                     if (manuData != null && manuData.length > 0) {
-                        payloadStr = new String(manuData, StandardCharsets.UTF_8);
+                        payloadStr = "rk_" + bytesToHex(manuData);
                     }
 
                     if (payloadStr != null && !payloadStr.isEmpty()) {
@@ -394,5 +407,23 @@ public class BleMeshPlugin extends Plugin {
             Log.w(TAG, "Error stopping scanner: " + e.getMessage());
             call.resolve(new JSObject().put("success", true));
         }
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    private static byte[] hexToBytes(String hex) {
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                                 + Character.digit(hex.charAt(i+1), 16));
+        }
+        return data;
     }
 }
