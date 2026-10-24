@@ -36,13 +36,22 @@ export function buildSafetySystemPrompt(
   incidents: Incident[]
 ): string {
   const nearestSafeSpots = helpCenters
-    .slice(0, 5)
-    .map(
-      (c) =>
-        `- **${c.name}** (${c.type.replace("_", " ")}) ~${Math.round(c.distance || 0)}m away ${
-          c.phone ? `[Phone: ${c.phone}]` : ""
-        }`
-    )
+    .slice(0, 6)
+    .map((c) => {
+      const isWomenPolice = c.type === "women_police";
+      const isPolice = c.type === "police";
+      const isHospital = c.type === "hospital";
+      const categoryTag = isWomenPolice
+        ? "Dedicated Mahila Police Station (Women Police)"
+        : isPolice
+        ? "General Police Station (Not a Mahila Thana)"
+        : isHospital
+        ? "Hospital / Medical Center"
+        : c.type;
+      return `- **${c.name}** [Type: ${categoryTag}] ~${Math.round(c.distance || 0)}m away ${
+        c.phone ? `[Phone: ${c.phone}]` : ""
+      }`;
+    })
     .join("\n");
 
   const localDangerZones = incidents
@@ -61,6 +70,16 @@ MANDATORY WOMEN SAFETY PINCH-SITUATION PROTOCOL:
    - Step 2: Communication/Deterrence (e.g. "Trigger SOS button immediately", "Call 112 or 181", "Start Fake Call").
    - Step 3: Head to nearest police/safe haven listed below.
 5. NATIONAL HELPLINES TO REMEMBER: National Emergency PCR (112), Women Helpline (181), NCW 24x7 (14490), Medical (102 / 108).
+6. ACCURATE FACILITY TYPE INTEGRITY (CRITICAL - DO NOT MISLABEL):
+   - If the user asks for a "Mahila Police Station", "Women Police Station", or "Mahila Thana":
+     - Check if any facility in the live list below has [Type: Dedicated Mahila Police Station (Women Police)].
+     - If NO dedicated Mahila Police Station is listed (e.g., only General Police Stations exist like "Connaught Place Police Station" marked [Type: General Police Station (Not a Mahila Thana)]):
+       - You MUST explicitly clarify that it is a General Police Station, NOT a Mahila Thana:
+         "The nearest police facility is **[Name]** (~[distance]m away). Please note this is a **General Police Station** (not a dedicated Mahila Thana), but it has female officers and PCR units stationed to assist women in distress. For dedicated 24/7 women support, you can also dial **181** (Women Helpline) or **112** (Police PCR)."
+       - NEVER falsely claim or imply a General Police Station is a Mahila Police Station.
+7. NEVER INVENT OR HALLUCINATE PEDESTRIAN TURNS OR STREET DIRECTIONS:
+   - You CANNOT see live streets. NEVER make up fictional steps like "1. Walk towards the main road, 2. Head to the nearest traffic signal, 3. It's on your left".
+   - Instead, instruct her: "Tap the **Auto-Route to Police** button below to open live turn-by-turn GPS navigation directly to the station on your map, or dial 112."
 
 LIVE GEOLOCATION & SURROUNDINGS DATA:
 - Address: ${currentAddress}
@@ -78,9 +97,9 @@ ${localDangerZones || "- No unlit street risk alerts reported nearby."}`;
 export function generateLocalEmergencyResponse(
   userInput: string,
   currentAddress: string,
-  userLocation: Coords | null,
+  _userLocation: Coords | null,
   helpCenters: HelpCenter[],
-  incidents: Incident[]
+  _incidents: Incident[]
 ): { content: string; actions: MessageAction[] } {
   const query = userInput.toLowerCase();
   const nearestPolice = helpCenters.find(
@@ -211,13 +230,86 @@ export function generateLocalEmergencyResponse(
 
 🛡️ **RECOMMENDED WALKING STRATEGY:**
 1. Use **Rakshika Safe Walk Grid** on the Map Screen for lit-street navigation.
-2. **Nearest Mahila / Police Post:** **${policeName}** (${policeDist}).
+2. **Nearest Police Post:** **${policeName}** (${policeDist}).
 3. Avoid dark shortcuts or unlit alleyways. Stick to primary roads with CCTV coverage.`,
       actions: defaultActions,
     };
   }
 
-  // 5. Default General Safety Advisory
+  // 5. Police Station / Mahila Thana / Safe Haven Query
+  const wantsWomenPolice =
+    query.includes("mahila") ||
+    query.includes("women police") ||
+    query.includes("nari") ||
+    query.includes("women thana") ||
+    query.includes("lady police");
+
+  const wantsPolice =
+    wantsWomenPolice ||
+    query.includes("police") ||
+    query.includes("thana") ||
+    query.includes("station") ||
+    query.includes("cop") ||
+    query.includes("chowki") ||
+    query.includes("haven") ||
+    query.includes("safe spot");
+
+  if (wantsPolice) {
+    const dedicatedWomenPolice = helpCenters.find((c) => c.type === "women_police");
+    const targetPolice = wantsWomenPolice && dedicatedWomenPolice ? dedicatedWomenPolice : nearestPolice;
+
+    const policeActions: MessageAction[] = [
+      { type: "sos", label: "🚨 Trigger SOS" },
+      { type: "call_police", label: "📞 Call 112 PCR", phone: targetPolice?.phone || "112" },
+      { type: "call_women_helpline", label: "📞 Women Helpline 181", phone: "181" },
+    ];
+
+    if (targetPolice) {
+      policeActions.unshift({
+        type: "route_police",
+        label: `🗺️ Auto-Route to ${targetPolice.name.slice(0, 20)}`,
+        dest: { lat: targetPolice.lat, lng: targetPolice.lng, name: targetPolice.name },
+      });
+    }
+
+    if (wantsWomenPolice && !dedicatedWomenPolice && nearestPolice) {
+      return {
+        content: `👮 **POLICE ASSISTANCE & WOMEN SAFETY ADVISORY**
+
+📍 **Live Location Lock:** **${currentAddress}**.
+
+The nearest police facility to your coordinates is **${nearestPolice.name}** (~${Math.round(nearestPolice.distance || 0)}m away).
+
+⚠️ *Please note: This is a **General Police Station** (not a dedicated Mahila Thana), but it has duty officers and PCR units equipped to handle women distress calls immediately.*
+
+🛡️ **RECOMMENDED ACTIONS:**
+1. **Tap Auto-Route Below:** Follow live turn-by-turn navigation on the map to reach **${nearestPolice.name}** safely.
+2. **Contact National Women Helpline:** Call **181** (24/7 Women in Distress / NCW) or **112** (Police Emergency).
+3. **Stay in Lit Surroundings:** Walk along main roads with CCTV and lighting. Avoid taking deserted shortcuts.`,
+        actions: policeActions,
+      };
+    }
+
+    const facilityTypeLabel = targetPolice?.type === "women_police" ? "Dedicated Mahila Police Station" : "Police Station";
+    const facilityName = targetPolice?.name || "Nearest Police Station";
+    const facilityDist = targetPolice?.distance ? `~${Math.round(targetPolice.distance)}m away` : "nearby";
+
+    return {
+      content: `👮 **NEAREST ${facilityTypeLabel.toUpperCase()}**
+
+📍 **Live Location Lock:** **${currentAddress}**.
+
+The closest verified police facility is **${facilityName}** (${facilityDist}).
+
+🛡️ **RECOMMENDED ACTIONS:**
+1. **Tap Auto-Route Below:** Open live turn-by-turn map navigation to guide you directly to **${facilityName}**.
+2. **Immediate Assistance:** Dial **112** for instant police emergency dispatch or **181** for the Women Helpline.
+3. **Emergency Alert:** If you feel in danger right now, tap **Trigger SOS** to alert your emergency contacts and nearby verified volunteers.`,
+      actions: policeActions,
+    };
+  }
+
+  // 6. Default General Safety Advisory
   return {
     content: `🛡️ **RAKSHIKA SAFETY GUARDIAN ACTIVE**
 

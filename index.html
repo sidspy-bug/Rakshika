@@ -8,6 +8,20 @@
     <meta name="description" content="India's most intelligent women safety ecosystem." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>Rakshika - Women's Safety & Emergency Assistance</title>
+    <script>
+      // Defensive bridge shim: prevents uncaught TypeError if native plugins dispatch events during cold boot
+      (function() {
+        var dummy = { triggerEvent: function() {} };
+        if (typeof window !== "undefined") {
+          window.Capacitor = window.Capacitor || {};
+          if (!window.Capacitor.triggerEvent) window.Capacitor.triggerEvent = function() {};
+        }
+        if (typeof globalThis !== "undefined") {
+          globalThis.Capacitor = globalThis.Capacitor || {};
+          if (!globalThis.Capacitor.triggerEvent) globalThis.Capacitor.triggerEvent = function() {};
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

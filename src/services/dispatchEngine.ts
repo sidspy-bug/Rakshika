@@ -12,14 +12,12 @@
  * - Full audit logs are written to sosAuditLogger and persisted on device.
  */
 
-import { registerPlugin } from "@capacitor/core";
+import { SmsPlugin } from "../plugins/smsPlugin";
 import { syncSosToFirebase, type SosIncident } from "./sosService";
 import { airTagMeshRelayService } from "./airTagMeshRelayService";
 import { sosAuditLogger } from "./sosAuditLogger";
 import { cloudAuthService } from "./cloudAuthService";
 import { cloudSyncManager } from "./cloudSyncManager";
-
-const SmsPlugin = registerPlugin<any>("SmsPlugin");
 
 export type DispatchChannel =
   | "CELLULAR_SMS"

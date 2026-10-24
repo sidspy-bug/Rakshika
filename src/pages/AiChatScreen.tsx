@@ -5,6 +5,7 @@ import { useUserLocation } from "../hooks/useUserLocation";
 import { useGisData } from "../hooks/useGisData";
 import { reverseGeocode } from "../services/gisService";
 import { queryAiGuardian, type AiMessage, type MessageAction } from "../services/aiGuardianService";
+import { FormattedChatMessage } from "../components/chat/FormattedChatMessage";
 
 const CHAT_STORAGE_KEY = "rakshika_ai_chat_messages";
 const ADDRESS_STORAGE_KEY = "rakshika_user_last_address";
@@ -200,9 +201,7 @@ export function AiChatScreen() {
                   : "bg-gray-900/90 text-gray-100 rounded-tl-sm border border-gray-800 backdrop-blur-md shadow-2xl"
               }`}
             >
-              <div className="text-xs leading-relaxed whitespace-pre-wrap font-medium">
-                {msg.content}
-              </div>
+              <FormattedChatMessage content={msg.content} isUser={msg.role === "user"} />
 
               {/* Interactive Action Shortcuts for Emergency Situations */}
               {msg.actions && msg.actions.length > 0 && (

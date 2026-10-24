@@ -17,6 +17,7 @@ import { computeSHA256 } from "./cryptoMeshService";
 import { sosAuditLogger } from "./sosAuditLogger";
 import { cloudAuthService } from "./cloudAuthService";
 import { setSosEvidenceUrl } from "./sosService";
+import { dualCameraService } from "./dualCameraService";
 
 export interface EvidenceChunkMeta {
   index: number;
@@ -72,22 +73,40 @@ export class EvidenceChunkStreamer {
   /**
    * Initializes audio/video capture with battery & storage efficiency settings
    */
-  async startStream(): Promise<boolean> {
+  async startStream(
+    customStream?: MediaStream | null,
+    coords?: { lat: number; lng: number }
+  ): Promise<boolean> {
     try {
-      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-        console.warn("[EvidenceStreamer] MediaDevices API not available.");
-        return false;
+      let stream: MediaStream | null = customStream || null;
+
+      if (!stream) {
+        // Automatically start Dual Camera capture (Front + Rear composite stream)
+        stream = await dualCameraService.startDualCapture({
+          coords,
+          incidentId: this.incidentId,
+        });
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 480, max: 640 },
-          height: { ideal: 360, max: 480 },
-          frameRate: { ideal: 15, max: 20 },
-        },
-        audio: true,
-      });
+      if (!stream) {
+        // Fallback to basic getUserMedia
+        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "user",
+              width: { ideal: 480, max: 640 },
+              height: { ideal: 360, max: 480 },
+              frameRate: { ideal: 15, max: 20 },
+            },
+            audio: true,
+          }).catch(() => null);
+        }
+      }
+
+      if (!stream) {
+        console.warn("[EvidenceStreamer] No media stream available for evidence recording.");
+        return false;
+      }
 
       this.stream = stream;
 
@@ -369,6 +388,9 @@ export class EvidenceChunkStreamer {
       });
       this.stream = null;
     }
+
+    // Stop and release dual camera resources
+    dualCameraService.stopDualCapture();
 
     // Assemble and save single master video file
     await this.assembleAndSaveMasterVideo();

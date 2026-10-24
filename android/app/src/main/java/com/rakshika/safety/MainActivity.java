@@ -28,6 +28,10 @@ public class MainActivity extends BridgeActivity {
             permList.add(Manifest.permission.BLUETOOTH_SCAN);
             permList.add(Manifest.permission.BLUETOOTH_CONNECT);
         }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            permList.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
         
         boolean needsRequest = false;
         for (String permission : permList) {
@@ -40,5 +44,14 @@ public class MainActivity extends BridgeActivity {
         if (needsRequest) {
             ActivityCompat.requestPermissions(this, permList.toArray(new String[0]), 100);
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == 100) {
+            // Proactive startup permissions handled directly
+            return;
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 }

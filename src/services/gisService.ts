@@ -16,7 +16,6 @@ const PHOTON_BASE_URL = "https://photon.komoot.io";
 
 const headers = {
   Accept: "application/json",
-  "User-Agent": "RakshikaWomenSafety/1.0 (Emergency Assistance App)",
 };
 
 /**

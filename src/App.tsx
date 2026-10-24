@@ -185,9 +185,56 @@ export default function App() {
   } | null>(null);
 
   useEffect(() => {
+    function playOfflineAlertChime() {
+      try {
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.15);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.35, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.6);
+      } catch {
+        // Audio playback error or autoplay blocked
+      }
+    }
+
     const handleIntercepted = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail) {
+        // Play alert sound and haptic vibration on receiver's device
+        playOfflineAlertChime();
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate([350, 150, 350, 150, 600]);
+          } catch {
+            // vibration not supported
+          }
+        }
+
+        // Show Web Notification if granted
+        if ("Notification" in window && Notification.permission === "granted") {
+          try {
+            new Notification("🚨 OFFLINE PEER SOS INTERCEPTED!", {
+              body: customEvent.detail.message
+                ? `💬 "${customEvent.detail.message}" - Relaying to Safety Cloud.`
+                : "Nearby offline distress beacon captured! Relaying to safety cloud.",
+              icon: "/favicon.svg",
+              requireInteraction: true,
+            });
+          } catch {
+            // notification failed
+          }
+        }
+
         setInterceptedAlert({
           incidentId: customEvent.detail.incidentId,
           lat: customEvent.detail.lat,
@@ -197,10 +244,11 @@ export default function App() {
           message: customEvent.detail.message,
           receivedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
         });
-        // Auto-dismiss after 12 seconds
+
+        // Visible for 45 seconds or until manually closed
         setTimeout(() => {
           setInterceptedAlert(null);
-        }, 12000);
+        }, 45000);
       }
     };
 

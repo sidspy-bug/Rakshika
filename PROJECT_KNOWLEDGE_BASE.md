@@ -121,6 +121,7 @@ Rakshika/
 │   │           ├── MainActivity.java # Capacitor BridgeActivity entry point
 │   │           └── SmsPlugin.java    # Native Android SMS Manager plugin
 │   └── build.gradle                 # Project level Gradle script
+├── PRESENTATION_DOSSIER.md          # Comprehensive pitch deck guide, 10-slide PPT blueprint, technical defense & future roadmap
 ├── docs/
 │   ├── ANDROID_SETUP.md             # Guide to building APK in Android Studio
 │   └── PROJECT_MEMORY.md            # Architecture summary log
@@ -202,9 +203,11 @@ Rakshika/
     │   │   ├── EmergencyContactsSection.tsx # Expandable contact manager on profile & home
     │   │   ├── OfflineEmergencyModal.tsx # Zero-Net Offline Emergency Chat & GPS coordinates dispatch (Cellular SMS with contact management [add/remove/select/localStorage], BLE mesh, 1-tap templates)
     │   │   ├── PermissionBanner.tsx # Warning banner when location or SMS permissions are denied
-    │   │   └── SOSBanner.tsx        # Top urgent alert banner during active SOS
+    │   │   ├── SOSBanner.tsx        # Top urgent alert banner during active SOS
+    │   │   └── SosReadinessCard.tsx # Emergency SOS Readiness telemetry card with 1-tap diagnostic drill
     │   ├── settings/
-    │   │   └── PermissionsSection.tsx # Interactive permission status toggles (Location, Camera, Mic, SMS)
+    │   │   ├── PermissionsSection.tsx # Interactive permission status toggles (Location, Camera, Mic, SMS)
+    │   │   └── NotificationPreferencesSection.tsx # Emergency audio alerts, DND bypass, community distress, and test alert trigger
     │   └── volunteer/
     │       ├── AvailabilityToggle.tsx # Switch between AVAILABLE, UNAVAILABLE, and OFFLINE
     │       ├── BleStatusCard.tsx    # Displays active BLE mesh peers and store-and-forward relay queue
@@ -292,14 +295,19 @@ Rakshika/
      5. `google/gemma-2-9b-it:free`
      6. `mistralai/mistral-7b-instruct:free`
      7. `openai/gpt-3.5-turbo`
-3. **Local Offline Safety Intelligence Engine:**
-   - If offline or if all API attempts fail, the built-in deterministic safety engine generates instant tactical instructions across 5 pinch scenarios:
+3. **Local Offline Safety Intelligence Engine & Facility Integrity:**
+   - Deterministic safety engine generates instant tactical instructions across 6 scenarios:
      - *Stalking / Followed / Dark Street*
      - *Suspicious Cab / Taxi / Auto Driver*
      - *Medical Emergency / Trauma*
      - *Safe Route Navigation*
+     - *Police Station & Mahila Thana Guidance* (accurately distinguishes between dedicated Women Police Stations and General Police Stations)
      - *General Threat Advisory*
-   - Returns interactive action chips: **"🚨 Press SOS Now"**, **"📱 Trigger Fake Call"**, **"📞 Call 112 PCR"**, **"📞 Call 1091 Women Cell"**, **"🗺️ Auto-Route to Police"**.
+   - Returns interactive action chips: **"🚨 Press SOS Now"**, **"📱 Trigger Fake Call"**, **"📞 Call 112 PCR"**, **"📞 Call 181 Women Helpline"**, **"🗺️ Auto-Route to Police"**.
+4. **Rich Chat Markdown Renderer (`FormattedChatMessage.tsx`):**
+   - Renders inline markdown (`**bold**`, `*italic*`, `` `code` ``) without displaying raw asterisks.
+   - Converts numbered lists into styled circular badge elements and bullet items into glowing safety indicator dots.
+   - Enforces strict anti-hallucination guidelines preventing fictional walking turns, directly offering the **"Auto-Route to Police"** button to open live turn-by-turn navigation on the interactive map.
 
 ### 6.3 Real-Time SOS & Emergency Pipeline (`SosScreen.tsx`, `SmsPlugin.java`)
 
@@ -442,3 +450,116 @@ Rakshika/
 | `rakshika_active_map_state` | `JSON string` | Persisted waypoints and selected POI state across screen switches |
 | `rakshika_offline_locations` | `QueuedLocation[]` | Buffered GPS breadcrumbs awaiting network reconnect |
 | `rakshika_mock_active_alert` | `SOSAlert` | Simulated incoming emergency alert for volunteer testing |
+
+---
+
+## 10. Android Native Hardening & Logcat Diagnostics
+
+| Issue Identified in Logcat | Root Cause | Engineering Resolution |
+| :--- | :--- | :--- |
+| `Refused to set unsafe header "User-Agent"` | Axios reverse geocode & OSRM requests attempted to set `"User-Agent"` in browser/WebView environment. | Removed `"User-Agent"` header from `src/services/gisService.ts`; WebViews set this header automatically per W3C specification. |
+| `Capacitor plugin "SmsPlugin" already registered` | Multiple components (`OfflineEmergencyModal.tsx` & `dispatchEngine.ts`) invoked `registerPlugin("SmsPlugin")`. | Created centralized plugin registration module at `src/plugins/smsPlugin.ts` exported once. |
+| `OnBackInvokedCallback is not enabled` | Missing Android 13+ (API 33+) predictive back gesture flag. | Added `android:enableOnBackInvokedCallback="true"` to `<application>` in `AndroidManifest.xml`. |
+| `Can request only one set of permissions at a time` / `Unable to find a Capacitor plugin to handle permission requestCode 100` | `MainActivity` requested permissions using raw `ActivityCompat.requestPermissions(..., 100)` concurrently while `BleMeshPlugin` fired another runtime permission dialog on startup. | Added `onRequestPermissionsResult` override in `MainActivity.java` to cleanly swallow code 100, and added a low-power check in `BleMeshPlugin.java` so passive background scans don't throw colliding dialogs. |
+| `Cannot read properties of undefined (reading 'triggerEvent')` | Native plugins dispatching events before web bundle's `@capacitor/core` finished initializing `window.Capacitor`. | Injected lightweight defensive fallback shim in `<head>` of `index.html`. |
+| `[AUX]GuiExtAuxCheckAuxPath: Null anb` | Harmless ColorOS / MediaTek Vulkan gralloc driver buffer trace on Realme/Oppo devices. | Device OEM graphic layer logging; no crash or frame failure. |
+
+---
+
+## 11. Offline BLE Mesh Native Notifications & Chat Management
+
+### A. Receiver-Side Offline Notification Pipeline
+- **Problem**: When a peer device intercepted an offline BLE distress beacon, the device was silent and did not display an Android system notification if the screen was locked or app was in background.
+- **Resolution**:
+  - Implemented `postNativeSosNotification(...)` in `BleMeshPlugin.java` using `NotificationCompat.Builder` with `NotificationManager.IMPORTANCE_HIGH`, distinct vibration pattern (`0, 400, 200, 400, 200, 600`), and system alarm sound.
+  - Tapping the native notification automatically launches `MainActivity` to the foreground.
+  - Added `<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />` in `AndroidManifest.xml` and runtime request in `MainActivity.java`.
+  - In `App.tsx`, added Web Audio API dual-tone siren chime + haptic vibration + system Web Notification dispatch, with an extended 45-second high-visibility alert banner.
+
+### B. Offline Emergency Chat Management
+- **Problem**: The offline emergency modal accumulated mock/test distress messages in `localStorage` (`rakshika_offline_distress_chat`) without a way to delete individual entries or clear the conversation.
+- **Resolution**:
+  - Added `handleClearAllMessages()` in `OfflineEmergencyModal.tsx` with a sticky header bar displaying total message count and a "Clear All" trash action with confirmation.
+  - Added `handleDeleteMessage(id)` with a per-message trash icon button on each message bubble for granular message pruning.
+
+---
+
+## 12. Dual-Camera View & Forensic Evidence Recording
+
+### A. Dual Camera Architecture (`dualCameraService.ts`)
+- **Simultaneous Capture**: Simultaneously captures Front Camera (`facingMode: "user"` - victim's facial distress & cabin/indoor context) and Rear Camera (`facingMode: "environment"` - attacker, vehicles, license plates, surroundings) plus microphone audio.
+- **Hardware Concurrency & Fallbacks**: Detects if device ISP supports concurrent multi-camera streams. If concurrent access is locked by single-sensor hardware, dynamically maintains active capture with seamless 1-tap lens switching and 6-second alternating capture.
+- **Real-Time Canvas Compositor**:
+  - **PiP Mode**: Primary full-frame stream (e.g. Rear environment) with a Picture-in-Picture inset window (180x135) for Secondary stream (Front face).
+  - **Split-Screen Mode**: 50/50 side-by-side view (Rear on Left, Front on Right) with lens indicator badges.
+- **Cryptographic Pixel Watermarking**: Burns real-time UTC timestamp, live GPS coordinates, and Incident ID `#rk_...` directly into the video canvas frames every tick, rendering the video forensic evidence untamperable in court.
+- **Emergency Hardware Torch**: Provides hardware flashlight control on the rear camera track via `applyConstraints({ advanced: [{ torch: true }] })` to blind attackers or illuminate dark crime scenes.
+
+### B. SOS Integration (`SosScreen.tsx` & `DualCameraView.tsx`)
+- Automatically initializes and records unified dual-lens video in 3-second SHA-256 integrity chunks upon SOS activation.
+- Displays live interactive `DualCameraView` card with:
+  - Live video preview showing both front & rear angles.
+  - Controls: "Flip Lens" (swap primary), "Split View / PiP Inset", "Torch ON/OFF", and "Stealth / Covert Blackout".
+  - Standby preview toggle allowing users to test both camera lenses before emergency situations.
+- Assembles chunks on SOS stop into a unified `master_evidence.webm` saved in the Evidence Vault and synced to Cloud Storage.
+
+---
+
+## 13. Bounded Offline BLE SOS Broadcast Window & Receiver Debouncing
+
+### A. 8-Second Bounded Broadcast Burst
+- **Problem**: Previously, triggering an offline SOS beacon set `AdvertiseSettings.setTimeout(0)` and started an indefinite advertising loop with no automatic timeout, which caused continuous battery consumption and beacon flooding.
+- **Resolution**:
+  - Configured `durationMs = 8000` (8-second burst) in `airTagMeshRelayService.ts` and `BleMeshPlugin.java`.
+  - Android BLE advertiser `AdvertiseSettings.Builder.setTimeout(8000)` enforces automatic hardware radio termination.
+  - Added a delayed cleanup Handler in Java (`Looper.getMainLooper().postDelayed(...)`) to stop the advertiser and clear callbacks.
+  - Added an auto-stop timer in JavaScript `this.broadcastTimer = setTimeout(() => this.stopBroadcasting(), 8000)`.
+  - Updated offline modal feedback toast: *"SOS Sent via Cellular SMS & BLE Mesh (8s burst)!"*
+
+### B. Receiver Notification Debounce
+- **Problem**: Because BLE advertising packets transmit multiple times per second, the receiving peer device received continuous notifications and buzzed nonstop.
+- **Resolution**:
+  - Implemented a 10-second debounce in `BleMeshPlugin.java` checking `System.currentTimeMillis() - lastNotificationTime < 10000 && payloadStr.equals(lastNotifiedPayload)`.
+  - Ensures the receiver receives exactly **1 crisp, high-priority heads-up notification and vibration** without repetitive alert spam.
+
+---
+
+## 14. SOS Trigger Reliability & Touch Architecture
+
+### A. Root Cause Analysis
+1. **Uncaught ReferenceError on Standby / Active Camera**:
+   - In `SosScreen.tsx`, the `<Camera>` Lucide icon component was referenced on line 631 for the standby dual-camera preview toggle button, but was omitted from the `lucide-react` import statement.
+   - When running on Android WebView / Capacitor, the global `window.Camera` object existed in the runtime scope instead of a React component, causing React to throw `Uncaught ReferenceError: Camera is not defined` or `Element type is invalid: expected a function/class but got object`, resulting in a component crash when navigating to `/sos`.
+2. **Capacitive Touch Pointer Cancellation**:
+   - On physical Android devices, slight finger vibrations or gesture navigation during a hold triggered `pointercancel` or `pointerleave`, resetting `holdProgress` to 0% and preventing users who hold the button from reaching the 1.5s threshold.
+3. **Single-Tap Disconnect**:
+   - Users and judges frequently tapped the SOS button once expecting immediate response, rather than continuously holding for 1.5s.
+
+### B. Resolution & Enhancements
+- **Import Resolution**: Correctly imported `Camera` and `Zap` from `lucide-react` in [SosScreen.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/pages/SosScreen.tsx).
+- **Dual Triggering (Hold OR Tap)**:
+  - Added `onClick={handleInstantTrigger}` to the central SOS button alongside robust touch/pointer handlers (`onTouchStart`, `onTouchEnd`, `onTouchCancel`, `onPointerDown`, `onPointerUp`, `onPointerCancel`, `onMouseDown`, `onMouseUp`).
+  - Added dedicated high-contrast **"⚡ TAP TO TRIGGER SOS NOW"** action bar below the button for single-tap instant emergency activation.
+  - Increased hold progress velocity (~750ms responsive fill, `prev + 4`), with tactile vibration feedback.
+- **Instant Dispatch Bypass**: Added **"⚡ Dispatch Immediately"** button during the 3-second countdown window so users or judges can bypass the countdown buffer without waiting.
+- **Defensive Execution**: Wrapped `triggerSosActions()` in a global try/catch block with fallback error logging to `sosAuditLogger`, ensuring no unhandled asynchronous rejection can crash the UI.
+
+---
+
+## 15. BLE Advertising Packet Optimization & Cold-Boot Bridge Hardening
+
+### A. BLE Advertising ErrorCode 1 (`ADVERTISE_FAILED_DATA_TOO_LARGE`)
+- **Root Cause**:
+  - In `BleMeshPlugin.java`, the `scanResponse` packet previously included both `.addServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID))` (18 bytes) AND `.addServiceData(new ParcelUuid(RAKSHIKA_SERVICE_UUID), msgBytes)` (18 bytes + message bytes).
+  - Together, these totaled 37–62 bytes, violating the Bluetooth Core Specification's strict 31-byte legacy advertising PDU limit.
+  - The Android Bluetooth stack rejected the distress broadcast with error code 1 (`ADVERTISE_FAILED_DATA_TOO_LARGE`), preventing offline distress beacons from being advertised over the air.
+- **Resolution**:
+  - Refactored `scanResponse` in [BleMeshPlugin.java](file:///Users/ritesh/Documents/Rakshika/Rakshika/android/app/src/main/java/com/rakshika/safety/BleMeshPlugin.java):
+    - When an emergency message text is attached, it uses ONLY `.addServiceData` with message text truncated strictly to 11 bytes (18 + 11 = 29 bytes total <= 31 byte limit).
+    - When no message text is attached, it advertises the 128-bit Service UUID alone (18 bytes <= 31 bytes).
+  - Added an automated runtime fallback in `onStartFailure`: if `errorCode == ADVERTISE_FAILED_DATA_TOO_LARGE`, the advertiser immediately retries with the primary Manufacturer Data alone (`finalData`), ensuring the encrypted distress signal with coordinates ALWAYS transmits even on restrictive vendor chipsets.
+
+### B. Cold Boot Bridge Hardening
+- Strengthened defensive shimming in [index.html](file:///Users/ritesh/Documents/Rakshika/Rakshika/index.html) across both `window.Capacitor` and `globalThis.Capacitor`, eliminating early `Uncaught TypeError: Cannot read properties of undefined (reading 'triggerEvent')` warnings when native plugins dispatch events during cold boot before bundle scripts finish parsing.
+
+

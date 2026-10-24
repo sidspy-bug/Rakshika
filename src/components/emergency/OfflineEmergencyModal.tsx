@@ -22,12 +22,11 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Button } from "../ui/Button";
-import { registerPlugin, Capacitor } from "@capacitor/core";
+import { Capacitor } from "@capacitor/core";
+import { SmsPlugin } from "../../plugins/smsPlugin";
 import { airTagMeshRelayService } from "../../services/airTagMeshRelayService";
 import { enqueueLocation } from "../../services/offlineLocationQueue";
 import type { Coords } from "../../types/gis";
-
-const SmsPlugin = registerPlugin<any>("SmsPlugin");
 
 export interface OfflineMessage {
   id: string;
@@ -199,6 +198,25 @@ export function OfflineEmergencyModal({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleClearAllMessages = () => {
+    if (window.confirm("Are you sure you want to clear all offline emergency chat messages?")) {
+      setMessages([]);
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+      showToast("All offline messages cleared");
+    }
+  };
+
+  const handleDeleteMessage = (id: string) => {
+    setMessages((prev) => {
+      const updated = prev.filter((m) => m.id !== id);
+      try {
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast("Message deleted");
   };
 
   const handleToggleContact = (phone: string) => {
@@ -376,8 +394,8 @@ ${landmarkText}
     } else {
       showToast(
         smsSuccess
-          ? "SOS Dispatched via Cellular SMS & BLE Mesh!"
-          : "Distress coordinates broadcasted via BLE Mesh!"
+          ? "SOS Sent via Cellular SMS & BLE Mesh (8s burst)!"
+          : "Distress coordinates broadcasted via BLE Mesh (8s burst)!"
       );
     }
   };
@@ -625,19 +643,45 @@ ${landmarkText}
                 </div>
               ) : (
                 <div className="space-y-2.5 flex-1 overflow-y-auto">
+                  <div className="flex items-center justify-between px-1 pb-1.5 border-b border-slate-700/60 sticky top-0 bg-slate-900/95 backdrop-blur-xs z-10">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-red-400" />
+                      Offline Messages ({messages.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearAllMessages}
+                      className="text-[11px] font-bold text-red-400 hover:text-red-300 flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-red-950/40 active:scale-95 transition-all"
+                      title="Clear all offline distress messages"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Clear All</span>
+                    </button>
+                  </div>
                   {messages.map((m) => (
                     <div
                       key={m.id}
-                      className="bg-slate-800/95 text-white rounded-2xl p-3 text-xs border border-slate-700/80 shadow-md ml-auto max-w-[90%]"
+                      className="bg-slate-800/95 text-white rounded-2xl p-3 text-xs border border-slate-700/80 shadow-md ml-auto max-w-[90%] group relative"
                     >
                       <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mb-1.5 border-b border-slate-700/60 pb-1">
                         <span className="flex items-center gap-1 text-slate-300">
                           <Clock className="w-3 h-3 text-red-400" /> {m.timestamp}
                         </span>
-                        <span className="text-emerald-400 font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          {m.channels.sms ? "Cellular SMS" : "BLE Mesh"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-400 font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            {m.channels.sms ? "Cellular SMS" : "BLE Mesh"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMessage(m.id)}
+                            className="text-slate-400 hover:text-red-400 active:scale-90 transition-all p-0.5 rounded hover:bg-slate-700"
+                            title="Delete this message"
+                            aria-label="Delete message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-slate-100 font-medium leading-relaxed text-sm">{m.text}</p>
                       {m.coords && (

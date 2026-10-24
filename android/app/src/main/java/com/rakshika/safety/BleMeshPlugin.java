@@ -18,7 +18,13 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.ParcelUuid;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.util.Log;
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -61,6 +67,8 @@ public class BleMeshPlugin extends Plugin {
     private boolean isAdvertising = false;
     private boolean isScanning = false;
     private int currentScanMode = ScanSettings.SCAN_MODE_LOW_POWER;
+    private long lastNotificationTime = 0;
+    private String lastNotifiedPayload = "";
 
     @Override
     public void load() {
@@ -213,11 +221,16 @@ public class BleMeshPlugin extends Plugin {
                 } catch (InterruptedException ignored) {}
             }
 
+            int durationMs = call.getInt("durationMs", 8000);
+            if (durationMs <= 0 || durationMs > 180000) {
+                durationMs = 8000;
+            }
+
             AdvertiseSettings settings = new AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(false)
-                .setTimeout(0) // Run continuously until stopped
+                .setTimeout(durationMs) // 8-second bounded distress broadcast window
                 .build();
 
             // Decode hex ciphertext into raw 18 bytes binary payload
@@ -240,27 +253,36 @@ public class BleMeshPlugin extends Plugin {
                 truncatedBytes = rawBytes;
             }
 
-            // Primary Advertisement Data: Keep strictly minimal (Manufacturer ID + 18 byte payload = 22 bytes total <= 31 byte limit)
+            // Primary Advertisement Data: Keep strictly minimal (Manufacturer ID + 20 byte payload = 24 bytes total <= 31 byte limit)
             AdvertiseData data = new AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
                 .addManufacturerData(MANUFACTURER_ID_RAKSHIKA, truncatedBytes)
                 .build();
 
-            // Scan Response Data: Contains the 128-bit Rakshika Service UUID to prevent primary PDU overflow, plus emergency message text
-            AdvertiseData.Builder scanResponseBuilder = new AdvertiseData.Builder()
-                .addServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID));
-
+            // Scan Response Data: strictly <= 31 bytes total (Do NOT combine 128-bit UUID and Service Data in same packet!)
+            AdvertiseData scanResponse;
             if (message != null && !message.trim().isEmpty()) {
                 byte[] msgBytes = message.trim().getBytes(StandardCharsets.UTF_8);
-                if (msgBytes.length > 26) {
-                    byte[] truncated = new byte[26];
-                    System.arraycopy(msgBytes, 0, truncated, 0, 26);
-                    msgBytes = truncated;
-                }
-                scanResponseBuilder.addServiceData(new ParcelUuid(RAKSHIKA_SERVICE_UUID), msgBytes);
+                // 128-bit UUID header + UUID takes 18 bytes. Max payload in 31-byte PDU = 11 bytes.
+                int maxLen = 11;
+                byte[] safeMsg = new byte[Math.min(msgBytes.length, maxLen)];
+                System.arraycopy(msgBytes, 0, safeMsg, 0, safeMsg.length);
+                scanResponse = new AdvertiseData.Builder()
+                    .setIncludeDeviceName(false)
+                    .setIncludeTxPowerLevel(false)
+                    .addServiceData(new ParcelUuid(RAKSHIKA_SERVICE_UUID), safeMsg)
+                    .build();
+            } else {
+                scanResponse = new AdvertiseData.Builder()
+                    .setIncludeDeviceName(false)
+                    .setIncludeTxPowerLevel(false)
+                    .addServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID))
+                    .build();
             }
-            AdvertiseData scanResponse = scanResponseBuilder.build();
+
+            final AdvertiseSettings finalSettings = settings;
+            final AdvertiseData finalData = data;
 
             advertiseCallback = new AdvertiseCallback() {
                 @Override
@@ -275,10 +297,47 @@ public class BleMeshPlugin extends Plugin {
                     super.onStartFailure(errorCode);
                     isAdvertising = false;
                     Log.e(TAG, "❌ [BLE Native] Hardware BLE broadcast failed with errorCode: " + errorCode);
+                    if (errorCode == AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE) {
+                        Log.i(TAG, "🔄 [BLE Native] Retrying advertisement without ScanResponse packet (Pure Manufacturer Beacon)...");
+                        try {
+                            if (advertiser != null) {
+                                advertiser.startAdvertising(finalSettings, finalData, new AdvertiseCallback() {
+                                    @Override
+                                    public void onStartSuccess(AdvertiseSettings fallbackSettings) {
+                                        isAdvertising = true;
+                                        Log.i(TAG, "📡 [BLE Native] Pure Manufacturer Beacon broadcasting active!");
+                                    }
+
+                                    @Override
+                                    public void onStartFailure(int err) {
+                                        isAdvertising = false;
+                                        Log.e(TAG, "❌ [BLE Native] Fallback advertising failed with code: " + err);
+                                    }
+                                });
+                            }
+                        } catch (Exception ex) {
+                            Log.e(TAG, "Fallback advertising exception: " + ex.getMessage());
+                        }
+                    }
                 }
             };
 
             advertiser.startAdvertising(settings, data, scanResponse, advertiseCallback);
+
+            // Automatically clean up native advertiser when duration window expires
+            final int timeout = durationMs;
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (isAdvertising && advertiser != null && advertiseCallback != null) {
+                            advertiser.stopAdvertising(advertiseCallback);
+                            isAdvertising = false;
+                            Log.i(TAG, "⏱️ [BLE Native] Bounded " + (timeout / 1000) + "s distress beacon broadcast finished.");
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }, timeout);
 
             JSObject ret = new JSObject();
             ret.put("success", true);
@@ -348,12 +407,30 @@ public class BleMeshPlugin extends Plugin {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                if (call.getBoolean("lowPower", false)) {
+                    Log.i(TAG, "BLUETOOTH_SCAN permission not yet granted for passive background scan; will retry once granted.");
+                    JSObject ret = new JSObject();
+                    ret.put("success", false);
+                    ret.put("error", "PERMISSION_NOT_GRANTED");
+                    ret.put("message", "Bluetooth scan permission not yet granted.");
+                    call.resolve(ret);
+                    return;
+                }
                 Log.i(TAG, "Requesting BLUETOOTH_SCAN runtime permission...");
                 requestPermissionForAlias("bluetooth", call, "scanPermissionCallback");
                 return;
             }
         } else {
             if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                if (call.getBoolean("lowPower", false)) {
+                    Log.i(TAG, "ACCESS_FINE_LOCATION permission not yet granted for passive background scan; will retry once granted.");
+                    JSObject ret = new JSObject();
+                    ret.put("success", false);
+                    ret.put("error", "PERMISSION_NOT_GRANTED");
+                    ret.put("message", "Location permission not yet granted for BLE scan.");
+                    call.resolve(ret);
+                    return;
+                }
                 Log.i(TAG, "Requesting ACCESS_FINE_LOCATION permission for BLE scan...");
                 requestPermissionForAlias("bluetooth", call, "scanPermissionCallback");
                 return;
@@ -420,6 +497,7 @@ public class BleMeshPlugin extends Plugin {
                         }
 
                         notifyListeners("onBeaconDetected", eventData);
+                        postNativeSosNotification(msgStr, payloadStr, result.getRssi());
                     }
                 }
 
@@ -555,6 +633,72 @@ public class BleMeshPlugin extends Plugin {
         } catch (Exception e) {
             Log.w(TAG, "Error stopping scanner: " + e.getMessage());
             call.resolve(new JSObject().put("success", true));
+        }
+    }
+
+    private void postNativeSosNotification(String message, String payloadStr, int rssi) {
+        try {
+            long now = System.currentTimeMillis();
+            if (now - lastNotificationTime < 10000 && payloadStr != null && payloadStr.equals(lastNotifiedPayload)) {
+                // Debounce duplicate notification within 10s to prevent continuous buzzing
+                return;
+            }
+            lastNotificationTime = now;
+            lastNotifiedPayload = payloadStr != null ? payloadStr : "";
+
+            Context ctx = getContext();
+            if (ctx == null) return;
+
+            NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            String channelId = "rakshika_offline_mesh_channel";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(
+                    channelId,
+                    "Rakshika Offline SOS Alerts",
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.setDescription("High-priority alerts when nearby offline BLE distress beacons are intercepted");
+                channel.enableVibration(true);
+                channel.setVibrationPattern(new long[]{0, 400, 200, 400, 200, 600});
+                nm.createNotificationChannel(channel);
+            }
+
+            Intent intent = new Intent(ctx, MainActivity.class);
+            intent.setAction(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                ctx,
+                (int) System.currentTimeMillis(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+            );
+
+            String bodyText = (message != null && !message.isEmpty())
+                ? "💬 \"" + message + "\" (Signal: " + rssi + " dBm)"
+                : "Nearby offline distress beacon captured! Relaying to safety cloud.";
+
+            Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, channelId)
+                .setSmallIcon(android.R.drawable.stat_notify_more)
+                .setContentTitle("🚨 OFFLINE PEER SOS INTERCEPTED!")
+                .setContentText(bodyText)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(bodyText + "\nBeacon ID: " + (payloadStr.length() > 16 ? payloadStr.substring(0, 16) : payloadStr) + "..."))
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setAutoCancel(true)
+                .setSound(defaultSoundUri)
+                .setVibrate(new long[]{0, 400, 200, 400, 200, 600})
+                .setContentIntent(pendingIntent);
+
+            nm.notify(91100, builder.build());
+            Log.i(TAG, "🔔 [BLE Native] Posted system heads-up notification for intercepted SOS beacon!");
+        } catch (Exception ex) {
+            Log.w(TAG, "Could not post native SOS notification: " + ex.getMessage());
         }
     }
 

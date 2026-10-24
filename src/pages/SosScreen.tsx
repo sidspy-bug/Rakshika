@@ -22,6 +22,8 @@ import {
   Download,
   Terminal,
   ChevronLeft,
+  Camera,
+  Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
@@ -43,6 +45,7 @@ import { useAirTagMesh } from "../hooks/useAirTagMesh";
 import { guardianAnchorService } from "../services/guardianAnchorService";
 import { sosAuditLogger, type SosAuditLogEntry } from "../services/sosAuditLogger";
 import { cloudAuthService } from "../services/cloudAuthService";
+import { DualCameraView } from "../components/emergency/DualCameraView";
 
 function Toast({ message }: { message: string }) {
   return (
@@ -68,6 +71,10 @@ export function SosScreen() {
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState("Emergency Signals Dispatched");
   const [incident, setIncident] = useState<SosIncident | null>(() => existingActive);
+  const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>(() => {
+    const cached = getCachedLastLocation();
+    return cached ? { lat: cached.lat, lng: cached.lng } : { lat: 28.6139, lng: 77.2090 };
+  });
 
   // Connectivity state
   const [isOnline, setIsOnline] = useState<boolean>(
@@ -137,6 +144,7 @@ export function SosScreen() {
   const [chunksCount, setChunksCount] = useState(0);
   const [lastChunkHash, setLastChunkHash] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [showStandbyCamera, setShowStandbyCamera] = useState(false);
 
   // Mesh stats hook
   const meshStats = useAirTagMesh(true);
@@ -171,6 +179,17 @@ export function SosScreen() {
     };
   }, []);
 
+  const handleInstantTrigger = useCallback(() => {
+    setHoldProgress(100);
+    setActivated(true);
+    setCountdown(0);
+    if (navigator.vibrate && !isGhostMode) {
+      try {
+        navigator.vibrate([200, 100, 200, 100, 500]);
+      } catch {}
+    }
+  }, [isGhostMode]);
+
   // Press and hold logic
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -180,11 +199,13 @@ export function SosScreen() {
           if (prev >= 100) {
             setActivated(true);
             if (navigator.vibrate && !isGhostMode) {
-              navigator.vibrate([200, 100, 200, 100, 500]);
+              try {
+                navigator.vibrate([200, 100, 200, 100, 500]);
+              } catch {}
             }
             return 100;
           }
-          return prev + 2; // ~1.5 seconds to fill
+          return prev + 4; // ~750ms responsive fill
         });
       }, 30);
     } else {
@@ -199,7 +220,9 @@ export function SosScreen() {
     if (activated && countdown > 0) {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     } else if (activated && countdown === 0 && !isStartedRef.current) {
-      triggerSosActions();
+      triggerSosActions().catch((err) => {
+        console.error("[SOS] triggerSosActions rejected:", err);
+      });
     }
     return () => clearTimeout(timer);
   }, [activated, countdown]);
@@ -228,39 +251,43 @@ export function SosScreen() {
   const triggerSosActions = async () => {
     isStartedRef.current = true;
 
-    // 1. Establish local-first synchronous SOS state
-    const localIncident = createOrGetActiveSos();
-    if (isGhostMode) {
-      setGhostMode(true);
-      setIsCovertBlackout(true);
-    }
-    setIncident(localIncident);
-    setShowToast(true);
-    setToastMsg(isOnline ? "Emergency SOS Dispatched" : "Offline SOS Activated (Radio Resilient)");
-    setTimeout(() => setShowToast(false), 3500);
+    try {
+      // 1. Establish local-first synchronous SOS state
+      const localIncident = createOrGetActiveSos();
+      if (isGhostMode) {
+        setGhostMode(true);
+        setIsCovertBlackout(true);
+      }
+      setIncident(localIncident);
+      setShowToast(true);
+      setToastMsg(isOnline ? "Emergency SOS Dispatched" : "Offline SOS Activated (Radio Resilient)");
+      setTimeout(() => setShowToast(false), 3500);
 
-    // 2. Parallel GPS Acquisition & Multi-Channel Dispatch
-    let currentCoords = { lat: 28.6139, lng: 77.2090 };
+      // 2. Parallel GPS Acquisition & Multi-Channel Dispatch
+      let coordsToUse = currentCoords;
 
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          currentCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          cacheUserLocation(currentCoords);
-          appendSosLocation(currentCoords);
-          dispatchEngine.dispatchAll(localIncident, currentCoords);
+          const freshCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          coordsToUse = freshCoords;
+          setCurrentCoords(freshCoords);
+          cacheUserLocation(freshCoords);
+          appendSosLocation(freshCoords);
+          dispatchEngine.dispatchAll(localIncident, freshCoords);
         },
         () => {
           const cached = getCachedLastLocation();
           if (cached) {
-            currentCoords = { lat: cached.lat, lng: cached.lng };
+            coordsToUse = { lat: cached.lat, lng: cached.lng };
+            setCurrentCoords(coordsToUse);
             sosAuditLogger.log(
               "GPS_TELEMETRY",
               "WARN",
               `Live GPS timeout (Airplane Mode?). Using cached last-known coordinates (${cached.lat.toFixed(5)}, ${cached.lng.toFixed(5)}).`
             );
           }
-          dispatchEngine.dispatchAll(localIncident, currentCoords);
+          dispatchEngine.dispatchAll(localIncident, coordsToUse);
         },
         { enableHighAccuracy: true, timeout: 4000 }
       );
@@ -268,6 +295,7 @@ export function SosScreen() {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
           const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setCurrentCoords(coords);
           cacheUserLocation(coords);
           appendSosLocation(coords);
         },
@@ -275,7 +303,7 @@ export function SosScreen() {
         { enableHighAccuracy: true }
       );
     } else {
-      dispatchEngine.dispatchAll(localIncident, currentCoords);
+      dispatchEngine.dispatchAll(localIncident, coordsToUse);
     }
 
     // 3. Start 3-Second Chunked Evidence Streaming with SHA-256 Integrity
@@ -289,12 +317,16 @@ export function SosScreen() {
         setIsRecording(true);
       });
 
-      const started = await streamer.startStream();
+      const started = await streamer.startStream(null, coordsToUse);
       setIsRecording(started);
     } catch (err) {
       sosAuditLogger.log("EVIDENCE_STREAM", "WARN", `Evidence streaming could not initialize: ${err}`);
     }
-  };
+  } catch (criticalErr) {
+    console.error("[SOS] Critical failure in triggerSosActions:", criticalErr);
+    sosAuditLogger.log("SOS_LIFECYCLE", "ERROR", `SOS trigger exception: ${criticalErr}`);
+  }
+};
 
   const cancelSos = async () => {
     isStartedRef.current = false;
@@ -585,28 +617,73 @@ export function SosScreen() {
 
                 {/* Main Button */}
                 <button
+                  onClick={handleInstantTrigger}
                   onPointerDown={() => setIsPressing(true)}
                   onPointerUp={() => setIsPressing(false)}
-                  onPointerLeave={() => setIsPressing(false)}
-                  className="absolute z-10 w-52 h-52 bg-gradient-to-b from-red-500 to-red-700 rounded-full flex flex-col items-center justify-center shadow-[0_0_50px_rgba(244,67,54,0.6)] active:scale-95 transition-transform select-none touch-none"
+                  onPointerCancel={() => setIsPressing(false)}
+                  onTouchStart={() => setIsPressing(true)}
+                  onTouchEnd={() => setIsPressing(false)}
+                  onTouchCancel={() => setIsPressing(false)}
+                  onMouseDown={() => setIsPressing(true)}
+                  onMouseUp={() => setIsPressing(false)}
+                  className="absolute z-10 w-52 h-52 bg-gradient-to-b from-red-500 to-red-700 rounded-full flex flex-col items-center justify-center shadow-[0_0_50px_rgba(244,67,54,0.6)] active:scale-95 transition-transform select-none touch-none cursor-pointer"
                 >
-                  <ShieldAlert className="w-16 h-16 text-white mb-1" />
-                  <span className="text-3xl font-black tracking-widest">HOLD SOS</span>
+                  <ShieldAlert className="w-16 h-16 text-white mb-1 animate-pulse" />
+                  <span className="text-3xl font-black tracking-widest text-white">SOS</span>
+                  <span className="text-[11px] font-semibold text-white/80 mt-1 uppercase tracking-wider">
+                    {holdProgress > 0 ? `HOLDING ${holdProgress}%` : "TAP OR HOLD"}
+                  </span>
                 </button>
               </div>
 
-              {/* Ghost Mode Toggle */}
-              <button
-                onClick={() => setIsGhostModeState(!isGhostMode)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
-                  isGhostMode
-                    ? "bg-purple-500/20 text-purple-300 border-purple-500/50"
-                    : "bg-white/5 text-gray-400 border-white/10 hover:text-white"
-                }`}
-              >
-                <EyeOff className="w-4 h-4" />
-                <span>Ghost Mode (Covert Black Screen): {isGhostMode ? "ON" : "OFF"}</span>
-              </button>
+              {/* Instant Trigger Quick Action */}
+              <div className="flex flex-col items-center gap-2 w-full max-w-xs">
+                <button
+                  onClick={handleInstantTrigger}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-sm tracking-wide shadow-lg shadow-red-600/30 hover:brightness-110 active:scale-98 transition-all border border-red-400/40"
+                >
+                  <Zap className="w-4 h-4 fill-current text-amber-300" />
+                  <span>TAP TO TRIGGER SOS NOW</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                {/* Ghost Mode Toggle */}
+                <button
+                  onClick={() => setIsGhostModeState(!isGhostMode)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    isGhostMode
+                      ? "bg-purple-500/20 text-purple-300 border-purple-500/50"
+                      : "bg-white/5 text-gray-400 border-white/10 hover:text-white"
+                  }`}
+                >
+                  <EyeOff className="w-4 h-4" />
+                  <span>Ghost Mode: {isGhostMode ? "ON" : "OFF"}</span>
+                </button>
+
+                {/* Standby Dual-Camera View Toggle */}
+                <button
+                  onClick={() => setShowStandbyCamera(!showStandbyCamera)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    showStandbyCamera
+                      ? "bg-red-500/20 text-red-300 border-red-500/50"
+                      : "bg-white/5 text-gray-400 border-white/10 hover:text-white"
+                  }`}
+                >
+                  <Camera className="w-4 h-4 text-red-400" />
+                  <span>Dual Camera: {showStandbyCamera ? "Hide" : "Preview"}</span>
+                </button>
+              </div>
+
+              {/* Standby Dual Camera Preview Accordion */}
+              {showStandbyCamera && (
+                <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200 mt-2">
+                  <DualCameraView
+                    coords={currentCoords}
+                    incidentId="STANDBY_PREVIEW"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Bottom Indicator Bar */}
@@ -638,19 +715,31 @@ export function SosScreen() {
               // Cancellation window (3-second buffer)
               <div className="flex flex-col items-center justify-center h-full gap-6">
                 <div className="text-center">
-                  <h2 className="text-2xl font-bold uppercase tracking-wider mb-2">
+                  <h2 className="text-2xl font-bold uppercase tracking-wider mb-2 text-white">
                     Dispatching SOS In
                   </h2>
                   <div className="text-8xl font-black text-white">{countdown}</div>
+                  <p className="text-xs text-red-200 mt-2 font-medium">Transmitting to emergency contacts & police</p>
                 </div>
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  className="bg-white text-red-600 hover:bg-gray-200 font-bold px-8 py-4 rounded-full text-lg shadow-2xl"
-                  onClick={cancelSos}
-                >
-                  <X className="w-6 h-6 mr-2" /> Cancel SOS
-                </Button>
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                  <Button
+                    size="lg"
+                    className="bg-amber-400 text-slate-950 hover:bg-amber-300 font-extrabold px-6 py-4 rounded-full text-base shadow-2xl flex items-center justify-center gap-2 border border-amber-300 cursor-pointer"
+                    onClick={() => {
+                      setCountdown(0);
+                    }}
+                  >
+                    <Zap className="w-5 h-5 fill-current" /> Dispatch Immediately
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="bg-white/20 text-white hover:bg-white/30 font-bold px-6 py-4 rounded-full text-base shadow-xl flex items-center justify-center gap-2 border border-white/20 cursor-pointer"
+                    onClick={cancelSos}
+                  >
+                    <X className="w-5 h-5" /> Cancel SOS
+                  </Button>
+                </div>
               </div>
             ) : (
               // ─── FULL ACTIVE SOS DISPATCH DASHBOARD ─────────────────────────
@@ -675,9 +764,20 @@ export function SosScreen() {
                 <h2 className="text-2xl font-black uppercase tracking-wider mb-1">
                   SOS Active — Help Dispatched
                 </h2>
-                <p className="text-white/70 text-xs text-center mb-4">
+                <p className="text-white/70 text-xs text-center mb-3">
                   Emergency signals transmitting across all redundant channels.
                 </p>
+
+                {/* ─── DUAL CAMERA FORENSIC EVIDENCE RECORDER ─── */}
+                <div className="w-full mb-4">
+                  <DualCameraView
+                    incidentId={incident?.id}
+                    coords={currentCoords}
+                    chunksCount={chunksCount}
+                    lastChunkHash={lastChunkHash}
+                    onCovertToggle={() => setIsCovertBlackout(true)}
+                  />
+                </div>
 
                 {/* ─── MULTI-CHANNEL DISPATCH STATUS GRID ─── */}
                 <div className="w-full bg-black/40 rounded-2xl p-4 flex flex-col gap-3 backdrop-blur-md border border-white/10 shadow-2xl">

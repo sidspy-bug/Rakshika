@@ -20,11 +20,12 @@ import {
   Bell,
   Smartphone,
 } from "lucide-react";
-import { GlassCard } from "../components/ui/GlassCard";
 import { useNavigate } from "react-router-dom";
 import { firebaseAuthService } from "../services/firebaseAuth";
 import { EmergencyContactsSection } from "../components/emergency/EmergencyContactsSection";
 import { PermissionsSection } from "../components/settings/PermissionsSection";
+import { NotificationPreferencesSection } from "../components/settings/NotificationPreferencesSection";
+import { SosReadinessCard } from "../components/emergency/SosReadinessCard";
 
 export function ProfileScreen() {
   const navigate = useNavigate();
@@ -72,7 +73,7 @@ export function ProfileScreen() {
       icon: Bell,
       title: "Notification Preferences",
       subtitle: "Alerts, broadcasts, and sounds",
-      expandable: false,
+      expandable: true,
     },
     {
       icon: Settings2,
@@ -96,26 +97,8 @@ export function ProfileScreen() {
         </div>
       </header>
 
-      {/* Safety Score Card */}
-      <GlassCard className="bg-gradient-to-r from-[#D32F2F] to-[#b71c1c] text-white border-none p-5">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="font-bold text-white/90">Safety Score</h3>
-            <div className="flex items-end gap-1 mt-1">
-              <span className="text-3xl font-black">94</span>
-              <span className="text-sm text-white/70 mb-1">/100</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-white/80 font-medium">
-              Profile completeness
-            </p>
-            <div className="w-24 h-2 bg-white/20 rounded-full mt-2 overflow-hidden">
-              <div className="w-[94%] h-full bg-green-400 rounded-full"></div>
-            </div>
-          </div>
-        </div>
-      </GlassCard>
+      {/* Emergency SOS Readiness Card */}
+      <SosReadinessCard />
 
       {/* Settings Menu */}
       <div className="space-y-3">
@@ -162,6 +145,14 @@ export function ProfileScreen() {
               expandedSection === "Permissions" && (
                 <div className="mt-2 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
                   <PermissionsSection />
+                </div>
+              )}
+
+            {/* Notification Preferences Expandable Section */}
+            {item.title === "Notification Preferences" &&
+              expandedSection === "Notification Preferences" && (
+                <div className="mt-2 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <NotificationPreferencesSection />
                 </div>
               )}
           </div>

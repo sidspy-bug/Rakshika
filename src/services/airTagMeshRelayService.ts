@@ -70,6 +70,7 @@ class AirTagMeshRelayService {
   private isAdvertising = false;
   private activeBeaconCiphertext: string | null = null;
   private scanInterval: ReturnType<typeof setInterval> | null = null;
+  private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private listeners: ((stats: MeshStats) => void)[] = [];
 
   constructor() {
@@ -172,19 +173,25 @@ class AirTagMeshRelayService {
   /**
    * Victim Action: Begins advertising an encrypted distress beacon
    */
-  async broadcastSosBeacon(payload: SosBeaconPayload): Promise<string> {
+  async broadcastSosBeacon(payload: SosBeaconPayload, durationMs: number = 8000): Promise<string> {
     const ciphertext = await encryptSosBeacon(payload);
     this.activeBeaconCiphertext = ciphertext;
     this.isAdvertising = true;
 
-    console.log(`[AirTagMesh] 📡 Broadcasting encrypted SOS beacon: ${ciphertext.slice(0, 16)}... (Msg: "${payload.message || "Coordinates Only"}")`);
-    
-    // 1. Hardware Bluetooth Radio Advertising (Over-The-Air BLE)
+    console.log(
+      `[AirTagMesh] 📡 Broadcasting encrypted SOS beacon (${durationMs / 1000}s burst): ${ciphertext.slice(
+        0,
+        16
+      )}... (Msg: "${payload.message || "Coordinates Only"}")`
+    );
+
+    // 1. Hardware Bluetooth Radio Advertising (Over-The-Air BLE with durationMs timeout)
     try {
-      const res = await BleMesh.startAdvertising({ 
+      const res = await BleMesh.startAdvertising({
         payload: ciphertext,
-        message: payload.message || ""
-      });
+        message: payload.message || "",
+        durationMs,
+      } as any);
       if (res && !res.success) {
         console.warn("[AirTagMesh] BLE advertising notice:", res.error, res.message);
         if (res.error === "BLUETOOTH_DISABLED") {
@@ -194,7 +201,7 @@ class AirTagMeshRelayService {
           } catch {}
         }
       } else {
-        console.log("[AirTagMesh] 📡 Native Hardware BLE beacon advertising engaged over physical radio.");
+        console.log(`[AirTagMesh] 📡 Native Hardware BLE beacon active for ${durationMs / 1000}s.`);
       }
     } catch (nativeErr) {
       console.warn("[AirTagMesh] Native BLE advertising fallback:", nativeErr);
@@ -211,6 +218,13 @@ class AirTagMeshRelayService {
       });
     }
 
+    // 3. Automatically terminate BLE distress broadcast after 8 seconds (5-10s window)
+    if (this.broadcastTimer) clearTimeout(this.broadcastTimer);
+    this.broadcastTimer = setTimeout(() => {
+      this.stopBroadcasting();
+      console.log(`[AirTagMesh] ⏱️ ${durationMs / 1000}s offline BLE broadcast burst complete.`);
+    }, durationMs);
+
     this.notifyListeners();
     return ciphertext;
   }
@@ -219,6 +233,10 @@ class AirTagMeshRelayService {
    * Stops active beacon broadcasting
    */
   stopBroadcasting(): void {
+    if (this.broadcastTimer) {
+      clearTimeout(this.broadcastTimer);
+      this.broadcastTimer = null;
+    }
     this.isAdvertising = false;
     this.activeBeaconCiphertext = null;
     try {
