@@ -562,4 +562,35 @@ Rakshika/
 ### B. Cold Boot Bridge Hardening
 - Strengthened defensive shimming in [index.html](file:///Users/ritesh/Documents/Rakshika/Rakshika/index.html) across both `window.Capacitor` and `globalThis.Capacitor`, eliminating early `Uncaught TypeError: Cannot read properties of undefined (reading 'triggerEvent')` warnings when native plugins dispatch events during cold boot before bundle scripts finish parsing.
 
+---
+
+## 16. Camera/Microphone Lifecycle Isolation & Offline BLE Mesh Notification Receiver Fix
+
+### A. Camera & Microphone Hardware Disengagement (Privacy & Battery Shield)
+- **Root Cause**:
+  1. `DualCameraView.tsx` unmount hook cleared timers but did not invoke `track.stop()` or `videoRef.current.srcObject = null`, leaving hardware media tracks active in Android's MediaServer. As a result, the OS green privacy indicator dot persisted in the status bar indefinitely.
+  2. `EvidenceChunkStreamer` and `DualCameraView` were unconditionally instantiated on SOS trigger, forcing camera and mic access even when the user wanted a low-power, covert, or radio-only emergency broadcast.
+- **Resolution**:
+  - In [DualCameraView.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/components/emergency/DualCameraView.tsx):
+    - Added comprehensive track termination in unmount cleanup: stops all `stream.getTracks()`, nullifies `videoRef.current.srcObject`, and calls `dualCameraService.stopDualCapture()`.
+  - In [SosScreen.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/pages/SosScreen.tsx):
+    - Added user preference `enableVideoEvidence` (persisted in `localStorage`, default: `false`).
+    - Added unmount cleanup hook ensuring all media streams and GPS watchers terminate cleanly if the user navigates away.
+    - Updated `triggerSosActions()`: only initializes `EvidenceChunkStreamer` and requests media permissions when `enableVideoEvidence` is `true`. Otherwise, it explicitly disengages camera/mic hardware (`dualCameraService.stopDualCapture()`) and runs distress strictly via GPS/Radio/SMS.
+    - Added UI toggle on the standby screen (`Cam/Mic Evidence: ON / OFF`) and active SOS card (`Turn Off Cam & Mic` / `Record Cam`), empowering the user to choose between high-privacy, battery-saving radio SOS and forensic dual-camera evidence recording.
+
+### B. Offline BLE Mesh Receiver Notification Reliability
+- **Root Cause**:
+  - In [BleMeshPlugin.java](file:///Users/ritesh/Documents/Rakshika/Rakshika/android/app/src/main/java/com/rakshika/safety/BleMeshPlugin.java), `buildScanFilters()` previously created a `ScanFilter` with `setManufacturerData(MANUFACTURER_ID_RAKSHIKA, new byte[]{})`.
+  - Passing an empty byte array instructed OEM hardware filters to match packets with *strictly zero bytes* of manufacturer payload. Because Rakshika emergency beacons contain a 20-byte payload, OEM chipsets dropped incoming distress beacons before they could reach `onScanResult`.
+  - In addition, Airplane Mode disables Bluetooth by default on Android unless the user keeps or turns Bluetooth ON.
+- **Resolution**:
+  - In `BleMeshPlugin.java`, modified `buildScanFilters()` to return `null` (unrestricted hardware filter). All BLE packets reach `onScanResult`, where software filtering inspects `scanRecord.getManufacturerSpecificData(MANUFACTURER_ID_RAKSHIKA)` reliably without hardware drop.
+  - Added direct hardware `Vibrator` buzz pattern (`vibrator.vibrate(VibrationEffect.createWaveform(...))`) inside `postNativeSosNotification`, guaranteeing the receiving phone buzzes forcefully even if the notification audio channel is silenced.
+  - Broadcast PDU size was strictly kept under 31 bytes (24 bytes primary, 29 bytes scan response) with automatic pure-beacon fallback on `ADVERTISE_FAILED_DATA_TOO_LARGE`.
+
+### C. Bottom Navigation AI Chat Icon & Label Alignment
+- In [AppLayout.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/components/layout/AppLayout.tsx), updated the navigation item from generic `MessageSquare` ("AI Help") to `Bot` + animated `Sparkles` badge labeled `"AI Chat"`, clearly identifying the offline-first Gemini AI assistant.
+
+
 

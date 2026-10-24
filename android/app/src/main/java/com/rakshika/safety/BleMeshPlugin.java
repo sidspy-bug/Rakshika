@@ -566,15 +566,10 @@ public class BleMeshPlugin extends Plugin {
     }
 
     private List<ScanFilter> buildScanFilters() {
-        List<ScanFilter> filters = new ArrayList<>();
-        // Match Rakshika Service UUID or Manufacturer Data in hardware
-        filters.add(new ScanFilter.Builder()
-            .setServiceUuid(new ParcelUuid(RAKSHIKA_SERVICE_UUID))
-            .build());
-        filters.add(new ScanFilter.Builder()
-            .setManufacturerData(MANUFACTURER_ID_RAKSHIKA, new byte[]{})
-            .build());
-        return filters;
+        // Return null so Android delivers all BLE packets directly to onScanResult.
+        // Software filtering in onScanResult then safely extracts MANUFACTURER_ID_RAKSHIKA
+        // without OEM chipset hardware-filter dropping packets.
+        return null;
     }
 
     @PermissionCallback
@@ -694,6 +689,18 @@ public class BleMeshPlugin extends Plugin {
                 .setSound(defaultSoundUri)
                 .setVibrate(new long[]{0, 400, 200, 400, 200, 600})
                 .setContentIntent(pendingIntent);
+
+            // Direct hardware haptic vibration (works even if notification sound is muted)
+            try {
+                android.os.Vibrator v = (android.os.Vibrator) ctx.getSystemService(Context.VIBRATOR_SERVICE);
+                if (v != null && v.hasVibrator()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        v.vibrate(android.os.VibrationEffect.createWaveform(new long[]{0, 500, 200, 500, 200, 800}, -1));
+                    } else {
+                        v.vibrate(new long[]{0, 500, 200, 500, 200, 800}, -1);
+                    }
+                }
+            } catch (Exception ignored) {}
 
             nm.notify(91100, builder.build());
             Log.i(TAG, "🔔 [BLE Native] Posted system heads-up notification for intercepted SOS beacon!");

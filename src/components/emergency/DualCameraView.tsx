@@ -86,6 +86,10 @@ export const DualCameraView: React.FC<DualCameraViewProps> = ({
     return () => {
       active = false;
       clearInterval(timer);
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      dualCameraService.stopDualCapture();
     };
   }, [incidentId]);
 

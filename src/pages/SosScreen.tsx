@@ -6,6 +6,7 @@ import {
   Phone,
   MapPin,
   Video,
+  VideoOff,
   CheckCircle2,
   AlertTriangle,
   Radio,
@@ -46,6 +47,7 @@ import { guardianAnchorService } from "../services/guardianAnchorService";
 import { sosAuditLogger, type SosAuditLogEntry } from "../services/sosAuditLogger";
 import { cloudAuthService } from "../services/cloudAuthService";
 import { DualCameraView } from "../components/emergency/DualCameraView";
+import { dualCameraService } from "../services/dualCameraService";
 
 function Toast({ message }: { message: string }) {
   return (
@@ -145,6 +147,22 @@ export function SosScreen() {
   const [lastChunkHash, setLastChunkHash] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [showStandbyCamera, setShowStandbyCamera] = useState(false);
+  const [enableVideoEvidence, setEnableVideoEvidence] = useState<boolean>(() => {
+    return localStorage.getItem("rakshika_enable_video_evidence") === "true";
+  });
+
+  const toggleVideoEvidence = (enabled: boolean) => {
+    setEnableVideoEvidence(enabled);
+    localStorage.setItem("rakshika_enable_video_evidence", String(enabled));
+    if (!enabled) {
+      dualCameraService.stopDualCapture();
+      if (evidenceStreamerRef.current) {
+        evidenceStreamerRef.current.stopStream().catch(() => {});
+        evidenceStreamerRef.current = null;
+        setIsRecording(false);
+      }
+    }
+  };
 
   // Mesh stats hook
   const meshStats = useAirTagMesh(true);
@@ -235,7 +253,7 @@ export function SosScreen() {
     return () => unsub();
   }, []);
 
-  // Clean up on unmount
+  // Clean up on unmount - completely stop GPS, evidence streamer, and camera/mic
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null) {
@@ -245,6 +263,7 @@ export function SosScreen() {
       if (evidenceStreamerRef.current) {
         evidenceStreamerRef.current.stopStream().catch(() => {});
       }
+      dualCameraService.stopDualCapture();
     };
   }, []);
 
@@ -306,21 +325,26 @@ export function SosScreen() {
       dispatchEngine.dispatchAll(localIncident, coordsToUse);
     }
 
-    // 3. Start 3-Second Chunked Evidence Streaming with SHA-256 Integrity
-    try {
-      const streamer = new EvidenceChunkStreamer(localIncident.id);
-      evidenceStreamerRef.current = streamer;
+    // 3. Start 3-Second Chunked Evidence Streaming with SHA-256 Integrity (ONLY if enabled)
+    if (enableVideoEvidence) {
+      try {
+        const streamer = new EvidenceChunkStreamer(localIncident.id);
+        evidenceStreamerRef.current = streamer;
 
-      streamer.onChunkProcessed((chunk: EvidenceChunkMeta, manifest) => {
-        setChunksCount(manifest.totalChunks);
-        setLastChunkHash(chunk.sha256.slice(0, 8));
-        setIsRecording(true);
-      });
+        streamer.onChunkProcessed((chunk: EvidenceChunkMeta, manifest) => {
+          setChunksCount(manifest.totalChunks);
+          setLastChunkHash(chunk.sha256.slice(0, 8));
+          setIsRecording(true);
+        });
 
-      const started = await streamer.startStream(null, coordsToUse);
-      setIsRecording(started);
-    } catch (err) {
-      sosAuditLogger.log("EVIDENCE_STREAM", "WARN", `Evidence streaming could not initialize: ${err}`);
+        const started = await streamer.startStream(null, coordsToUse);
+        setIsRecording(started);
+      } catch (err) {
+        sosAuditLogger.log("EVIDENCE_STREAM", "WARN", `Evidence streaming could not initialize: ${err}`);
+      }
+    } else {
+      dualCameraService.stopDualCapture();
+      setIsRecording(false);
     }
   } catch (criticalErr) {
     console.error("[SOS] Critical failure in triggerSosActions:", criticalErr);
@@ -661,6 +685,19 @@ export function SosScreen() {
                   <span>Ghost Mode: {isGhostMode ? "ON" : "OFF"}</span>
                 </button>
 
+                {/* Cam & Mic Evidence Toggle */}
+                <button
+                  onClick={() => toggleVideoEvidence(!enableVideoEvidence)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    enableVideoEvidence
+                      ? "bg-amber-500/20 text-amber-300 border-amber-500/50"
+                      : "bg-white/5 text-gray-400 border-white/10 hover:text-white"
+                  }`}
+                >
+                  {enableVideoEvidence ? <Video className="w-4 h-4 text-amber-400" /> : <VideoOff className="w-4 h-4 text-gray-400" />}
+                  <span>Cam/Mic Evidence: {enableVideoEvidence ? "ON" : "OFF"}</span>
+                </button>
+
                 {/* Standby Dual-Camera View Toggle */}
                 <button
                   onClick={() => setShowStandbyCamera(!showStandbyCamera)}
@@ -671,7 +708,7 @@ export function SosScreen() {
                   }`}
                 >
                   <Camera className="w-4 h-4 text-red-400" />
-                  <span>Dual Camera: {showStandbyCamera ? "Hide" : "Preview"}</span>
+                  <span>Dual Cam: {showStandbyCamera ? "Hide" : "Preview"}</span>
                 </button>
               </div>
 
@@ -768,15 +805,49 @@ export function SosScreen() {
                   Emergency signals transmitting across all redundant channels.
                 </p>
 
-                {/* ─── DUAL CAMERA FORENSIC EVIDENCE RECORDER ─── */}
+                {/* ─── FORENSIC EVIDENCE RECORDER OR DISCREET MODE ─── */}
                 <div className="w-full mb-4">
-                  <DualCameraView
-                    incidentId={incident?.id}
-                    coords={currentCoords}
-                    chunksCount={chunksCount}
-                    lastChunkHash={lastChunkHash}
-                    onCovertToggle={() => setIsCovertBlackout(true)}
-                  />
+                  {enableVideoEvidence ? (
+                    <div className="flex flex-col gap-2">
+                      <DualCameraView
+                        incidentId={incident?.id}
+                        coords={currentCoords}
+                        chunksCount={chunksCount}
+                        lastChunkHash={lastChunkHash}
+                        onCovertToggle={() => setIsCovertBlackout(true)}
+                      />
+                      <button
+                        onClick={() => toggleVideoEvidence(false)}
+                        className="self-center text-[11px] font-bold text-red-300/80 hover:text-white flex items-center gap-1.5 px-3 py-1 bg-black/40 rounded-full border border-red-500/30 cursor-pointer"
+                      >
+                        <VideoOff className="w-3 h-3 text-red-400" />
+                        <span>Turn Off Cam & Mic (Silent Radio SOS)</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-full bg-black/50 border border-white/10 rounded-2xl p-3.5 flex items-center justify-between backdrop-blur-md">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40">
+                          <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                            Discreet Low-Power Radio SOS
+                          </p>
+                          <p className="text-[10px] text-gray-400">
+                            Camera & Microphone Disengaged • Battery-saver active
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleVideoEvidence(true)}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Record Cam</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* ─── MULTI-CHANNEL DISPATCH STATUS GRID ─── */}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Shield, Map, MessageSquare, Users, Settings, ShieldAlert, X } from "lucide-react";
+import { Shield, Map, Bot, Users, Settings, ShieldAlert, X, Sparkles } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { getActiveSos, stopSos, type SosIncident } from "../../services/sosService";
 import { dispatchEngine } from "../../services/dispatchEngine";
@@ -12,7 +12,7 @@ export function AppLayout() {
   const navItems = [
     { to: "/", icon: Shield, label: "Safe" },
     { to: "/map", icon: Map, label: "Map" },
-    { to: "/ai", icon: MessageSquare, label: "AI Help" },
+    { to: "/ai", icon: Bot, label: "AI Chat", isAi: true },
     { to: "/community", icon: Users, label: "Community" },
     { to: "/profile", icon: Settings, label: "Profile" },
   ];
@@ -86,12 +86,17 @@ export function AppLayout() {
             to={item.to}
             className={({ isActive }) =>
               cn(
-                "flex flex-col items-center justify-center w-16 gap-1 transition-colors",
+                "flex flex-col items-center justify-center w-16 gap-1 transition-colors relative",
                 isActive ? "text-[#D32F2F]" : "text-gray-400 hover:text-gray-600"
               )
             }
           >
-            <item.icon className="w-6 h-6" />
+            <div className="relative">
+              <item.icon className="w-6 h-6" />
+              {item.isAi && (
+                <Sparkles className="w-2.5 h-2.5 text-amber-500 absolute -top-1 -right-1 animate-pulse" />
+              )}
+            </div>
             <span className="text-[10px] font-semibold">{item.label}</span>
           </NavLink>
         ))}
