@@ -26,7 +26,7 @@ import {
   Camera,
   Zap,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
   getActiveSos,
@@ -64,11 +64,13 @@ function Toast({ message }: { message: string }) {
 
 export function SosScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoActivate = Boolean((location.state as any)?.autoActivate);
   const existingActive = getActiveSos();
 
   const [isPressing, setIsPressing] = useState(false);
-  const [activated, setActivated] = useState<boolean>(() => Boolean(existingActive));
-  const [countdown, setCountdown] = useState<number>(() => (existingActive ? 0 : 3));
+  const [activated, setActivated] = useState<boolean>(() => Boolean(existingActive) || autoActivate);
+  const [countdown, setCountdown] = useState<number>(() => (existingActive || autoActivate ? 0 : 3));
   const [holdProgress, setHoldProgress] = useState(0);
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState("Emergency Signals Dispatched");

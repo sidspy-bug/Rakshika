@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ShieldAlert, MapPin, PhoneCall, Mic, Siren, Square, CheckCircle2, Radio, LifeBuoy } from "lucide-react";
+import { ShieldAlert, MapPin, PhoneCall, Mic, Siren, Square, CheckCircle2, Radio, LifeBuoy, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useUserLocation } from "../hooks/useUserLocation";
 import { reverseGeocode } from "../services/gisService";
 import { OfflineEmergencyModal } from "../components/emergency/OfflineEmergencyModal";
+import { cn } from "../utils/cn";
 
 function formatCompactAddress(fullAddress: string): string {
   if (!fullAddress) return "";
@@ -107,6 +108,86 @@ export function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [showToast, setShowToast] = useState("");
+
+  // Interactive SOS Button Hold State & Audio/Haptic Physics
+  const [sosHoldProgress, setSosHoldProgress] = useState(0);
+  const [isSosPressing, setIsSosPressing] = useState(false);
+  const pressStartTimeRef = useRef<number>(0);
+  const hasTriggeredRef = useRef<boolean>(false);
+
+  const playMechanicalClick = (frequency: number = 440, duration: number = 0.05) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+      setTimeout(() => ctx.close().catch(() => {}), duration * 1000 + 100);
+    } catch {}
+  };
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isSosPressing && !hasTriggeredRef.current) {
+      timer = setInterval(() => {
+        setSosHoldProgress((prev) => {
+          if (prev >= 100) {
+            hasTriggeredRef.current = true;
+            setIsSosPressing(false);
+            try {
+              if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200, 100, 500]);
+              }
+            } catch {}
+            playMechanicalClick(880, 0.15);
+            navigate("/sos", { state: { autoActivate: true } });
+            return 100;
+          }
+          const next = prev + 4; // ~750ms to reach 100%
+          if (next % 24 < 4) {
+            try {
+              if (navigator.vibrate) navigator.vibrate(25);
+            } catch {}
+          }
+          return next;
+        });
+      }, 30);
+    } else if (!isSosPressing) {
+      setSosHoldProgress(0);
+      hasTriggeredRef.current = false;
+    }
+    return () => clearInterval(timer);
+  }, [isSosPressing, navigate]);
+
+  const handleSosPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    pressStartTimeRef.current = Date.now();
+    hasTriggeredRef.current = false;
+    setIsSosPressing(true);
+    playMechanicalClick(520, 0.04);
+    try {
+      if (navigator.vibrate) navigator.vibrate(35);
+    } catch {}
+  };
+
+  const handleSosPointerUp = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const elapsed = Date.now() - pressStartTimeRef.current;
+    setIsSosPressing(false);
+    // If it was a quick intentional tap (< 350ms) and hold didn't complete
+    if (elapsed < 350 && !hasTriggeredRef.current) {
+      playMechanicalClick(620, 0.05);
+      navigate("/sos");
+    }
+  };
 
   const toggleSiren = () => {
     if (isSirenPlaying) {
@@ -292,17 +373,106 @@ export function Home() {
         </button>
       </header>
 
-      {/* Main SOS Action - Physical Tactile Actuator */}
-      <section className="flex flex-col items-center justify-center py-6">
-        <div className="cursor-pointer select-none" onClick={() => navigate('/sos')}>
-          <div className="w-48 h-48 rounded-full bg-slate-100 border-4 border-slate-200/90 p-2.5 flex items-center justify-center shadow-inner">
-            <button className="w-full h-full bg-[#D32F2F] hover:bg-[#c22828] active:bg-[#a81e1e] rounded-full shadow-[0_6px_0_#8b1818,0_10px_20px_rgba(0,0,0,0.12)] active:shadow-[0_2px_0_#8b1818,0_4px_10px_rgba(0,0,0,0.08)] active:translate-y-1 flex flex-col items-center justify-center border border-red-400/30 transition-all">
-              <ShieldAlert className="w-15 h-15 text-white mb-1" strokeWidth={1.8} />
-              <span className="text-white text-3xl font-black tracking-widest">SOS</span>
-            </button>
-          </div>
+      {/* Main SOS Action - Interactive Physical Tactile Actuator */}
+      <section className="flex flex-col items-center justify-center py-5">
+        <div className="relative flex items-center justify-center w-56 h-56 select-none touch-none">
+          {/* Subtle Concentric Sonar Waves */}
+          <motion.div
+            animate={isSosPressing ? { scale: [1, 1.25, 1.45], opacity: [0.6, 0.3, 0] } : { scale: [1, 1.12, 1.25], opacity: [0.25, 0.1, 0] }}
+            transition={{ duration: isSosPressing ? 0.8 : 2.5, repeat: Infinity, ease: "easeOut" }}
+            className={cn("absolute inset-2 rounded-full", isSosPressing ? "bg-red-500/25" : "bg-red-500/10")}
+          />
+          <motion.div
+            animate={isSosPressing ? { scale: [1, 1.15, 1.3], opacity: [0.7, 0.35, 0] } : { scale: [1, 1.06, 1.15], opacity: [0.35, 0.15, 0] }}
+            transition={{ duration: isSosPressing ? 0.8 : 2.5, delay: isSosPressing ? 0.2 : 0.6, repeat: Infinity, ease: "easeOut" }}
+            className={cn("absolute inset-4 rounded-full", isSosPressing ? "bg-red-600/30" : "bg-red-600/15")}
+          />
+
+          {/* Precision SVG Charge Gauge */}
+          <svg className="absolute inset-0 w-full h-full transform -rotate-90 pointer-events-none" viewBox="0 0 224 224">
+            {/* Background Bezel Ring Track */}
+            <circle
+              cx="112"
+              cy="112"
+              r="102"
+              stroke="#e2e8f0"
+              strokeWidth="6"
+              fill="none"
+              className="dark:stroke-slate-800"
+            />
+            {/* Active Hold-to-Charge Progress Arc */}
+            <circle
+              cx="112"
+              cy="112"
+              r="102"
+              stroke="#dc2626"
+              strokeWidth="7"
+              strokeLinecap="round"
+              fill="none"
+              strokeDasharray="640.88"
+              strokeDashoffset={640.88 - (640.88 * sosHoldProgress) / 100}
+              style={{ transition: isSosPressing ? "stroke-dashoffset 40ms linear" : "stroke-dashoffset 150ms ease-out" }}
+            />
+          </svg>
+
+          {/* Mechanical Inset Bezel Chassis */}
+          <div className="absolute inset-4 rounded-full bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 shadow-inner flex items-center justify-center p-2 pointer-events-none" />
+
+          {/* Tactile Spring Physical Actuator Button */}
+          <motion.button
+            animate={{
+              scale: isSosPressing ? 0.94 : 1,
+              y: isSosPressing ? 4 : 0,
+            }}
+            transition={{ type: "spring", stiffness: 500, damping: 28 }}
+            onPointerDown={handleSosPointerDown}
+            onPointerUp={handleSosPointerUp}
+            onPointerCancel={handleSosPointerUp}
+            onPointerLeave={handleSosPointerUp}
+            onContextMenu={(e) => e.preventDefault()}
+            className={cn(
+              "relative z-10 w-44 h-44 rounded-full flex flex-col items-center justify-center select-none cursor-pointer outline-none transition-shadow",
+              "bg-gradient-to-b from-[#ef4444] to-[#b91c1c] border-2 border-red-300/40 text-white",
+              isSosPressing
+                ? "shadow-[0_2px_0_#7f1d1d,0_6px_14px_rgba(185,28,28,0.25)]"
+                : "shadow-[0_8px_0_#7f1d1d,0_16px_28px_rgba(220,38,38,0.35)] hover:brightness-105"
+            )}
+            title="Press and hold for 1s for instant SOS, or tap to review dispatch controls"
+          >
+            {/* Top Gloss Reflection for Hardware Feel */}
+            <div className="absolute top-2 inset-x-8 h-8 rounded-t-full bg-white/20 blur-[1px] pointer-events-none" />
+
+            <ShieldAlert className="w-13 h-13 text-white mb-0.5 drop-shadow-sm" strokeWidth={2} />
+            <span className="text-3xl font-black tracking-widest text-white drop-shadow-sm leading-none">
+              SOS
+            </span>
+            <span className="text-[10px] font-extrabold tracking-wider text-red-100 uppercase mt-1">
+              {isSosPressing ? (sosHoldProgress > 0 ? `HOLD ${Math.round(sosHoldProgress)}%` : "HOLDING") : "PRESS / HOLD"}
+            </span>
+          </motion.button>
         </div>
-        <p className="mt-5 text-xs text-slate-500 font-semibold tracking-wider uppercase">Press for Emergency Dispatch</p>
+
+        {/* Dynamic Telemetry Feedback Pill */}
+        <div
+          className={cn(
+            "mt-4 px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border transition-all select-none shadow-xs",
+            isSosPressing
+              ? "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 animate-pulse"
+              : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+          )}
+        >
+          {isSosPressing ? (
+            <>
+              <AlertTriangle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+              <span>ARMING DISPATCH: {Math.min(100, Math.round(sosHoldProgress))}%</span>
+            </>
+          ) : (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+              <span>Hold 1s for instant dispatch • Tap to open</span>
+            </>
+          )}
+        </div>
       </section>
 
       {/* Quick Actions Grid - Tactile Utility Tiles */}

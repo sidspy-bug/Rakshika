@@ -671,3 +671,26 @@ In accordance with the Anti-AI-UI specification (`https://github.com/Vanszs/Anti
    - Replaced floating glass bubbles with solid slate tiles (`w-10 h-10 rounded-lg bg-slate-900 border border-slate-700 text-slate-200`).
    - Replaced gradient volunteer and SOS alert banners with solid high-contrast crimson and slate panels.
 
+---
+
+## 20. High-Tactility Interactive Mechanical SOS Actuator
+
+To deliver an urgent, tactile, and unmistakable emergency trigger without AI design tropes or ambiguous interactions:
+
+### A. Dual-Mode Emergency Trigger Mechanism (`Home.tsx`)
+1. **Single Tap (< 350ms)**:
+   - Plays a crisp mechanical confirmation audio click (`620Hz`) via Web Audio API.
+   - Immediately navigates to `/sos` for tactical review of judge contacts, pre-trip timers, and blackbox logs before activation.
+2. **Press & Hold Actuation (~750ms - 1s)**:
+   - Automatically charges a precision circular SVG stroke gauge from `0%` to `100%` (`strokeDasharray="640.88"`).
+   - Generates tactile haptic micro-pulses (`navigator.vibrate(25)`) at every 25% threshold interval.
+   - Upon reaching 100%, fires a full distress vibration sequence (`[200, 100, 200, 100, 500]`), generates an 880Hz confirmation chime, and navigates to `/sos` with `{ state: { autoActivate: true } }`.
+
+### B. Zero-Latency Instant Dispatch Handshake (`SosScreen.tsx`)
+- On mounting `/sos`, inspects `location.state?.autoActivate`.
+- When triggered via completed hold actuation from Home, bypasses the 3-second abort countdown (`countdown = 0`) and immediately commands the dispatch engine, BLE mesh transmitter, and on-device dual-camera chunk streamer.
+
+### C. Mechanical Hardware Physical Design & Telemetry Pill
+- **Physical Spring Actuator**: Built using `framer-motion` (`whileTap` physical displacement `y: 4`, `scale: 0.94`, spring damping 28) with a 3D inset bezel chassis (`shadow-[0_8px_0_#7f1d1d,0_16px_28px_rgba(220,38,38,0.35)]`).
+- **Dynamic Telemetry Pill**: Situated beneath the actuator, dynamically alternates between standby instructions (`"Hold 1s for instant dispatch • Tap to open"`) and an urgent live telemetry readout (`"ARMING DISPATCH: XX%"`) with an animated pulse indicator.
+
