@@ -592,5 +592,59 @@ Rakshika/
 ### C. Bottom Navigation AI Chat Icon & Label Alignment
 - In [AppLayout.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/components/layout/AppLayout.tsx), updated the navigation item from generic `MessageSquare` ("AI Help") to `Bot` + animated `Sparkles` badge labeled `"AI Chat"`, clearly identifying the offline-first Gemini AI assistant.
 
+### D. Default On-Device Offline Camera & Microphone Evidence Recording
+- **Update**: In [SosScreen.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/pages/SosScreen.tsx), initialized `enableVideoEvidence` to `localStorage.getItem("rakshika_enable_video_evidence") !== "false"`.
+- **Offline Guarantee**: When SOS activates in offline or airplane mode, dual-camera capture, 3-second chunk streaming, SHA-256 integrity hashing, and unified master video assembly run on-device automatically by default. Evidence is persisted locally to `Documents/Rakshika/evidence/{incidentId}/master_evidence.webm` for immediate playback in the Evidence Vault.
+- **Tri-Tier Idempotency (Anti-Ambiguity)**: All three channels (SMS, BLE, and Firestore Cloud) share a deterministic immutable `incidentId` (`sos_{timestamp}_{suffix}`). When internet coverage is restored, buffered events update the existing incident record via idempotent `setDoc(..., { merge: true })` rather than generating duplicate emergencies or conflicting alerts.
+
+---
+
+## 17. Dual Camera 50/50 Split View & Internet Architecture Blueprint
+
+### A. Dual Camera 50/50 Split-Screen Compositor
+- **Default Layout Transition**: Changed default `layoutMode` in [dualCameraService.ts](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/services/dualCameraService.ts) from `"PIP"` to `"SPLIT"`.
+- **Center-Cropped Aspect-Ratio Preserving Math (`drawImageCover`)**:
+  - Implemented dynamic aspect ratio calculation so that splitting a 640x480 canvas into two 320x480 viewports does not distort or horizontally squeeze camera feeds.
+  - Left pane renders Rear Camera (Scene / Attacker / Environment) with a blue tactical badge.
+  - Right pane renders Front Camera (Victim Face / Immediate Situation) with a gold tactical badge.
+  - Divided by an illuminated 3px red laser divider (`#ef4444`).
+- **Interactive Control**: Users can still toggle back to PiP Inset via the tactical control bar on [DualCameraView.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/components/emergency/DualCameraView.tsx).
+
+### B. Concrete Implementation Plan: Internet & Real-Time Cloud Sync Layer
+1. **Zero-Friction Anonymous Auth with Cloud Sync**:
+   - Enable automatic `signInAnonymously(auth)` when running in Guest/Demo mode with internet connectivity.
+   - Allows cloud sync to Firestore (`/sos_records`) and Storage (`/sos_evidence`) to fire immediately even if user bypassed traditional login.
+2. **Real-Time WebSockets & Firestore Snapshot Sync**:
+   - `onSnapshot` listener on `/sos_records` for Community screen and Map screen to visualize active community emergencies in real time.
+---
+
+## 18. Cross-Device Peer Volunteer Mesh & Real-Time SOS Driving Navigation
+
+### A. Real-Time Volunteer Presence Engine (`volunteerPresenceService.ts`)
+- **Persistent Device Identity**: Generates and persists unique device UUID in `localStorage` (`rakshika_device_unique_id`).
+- **Seamless Cloud Heartbeat**:
+  - Automatically establishes anonymous authentication (`signInAnonymously(auth)`) if running without email credentials.
+  - Automatically writes and refreshes `/volunteers/{deviceId}` presence records in Firestore every 20 seconds with live GPS coordinates, battery level, display name, and availability status.
+  - Subscribes via Firestore `onSnapshot` to discover nearby peer devices within range, filtering out stale devices (> 10 mins inactive) and own device ID.
+
+### B. Cross-Device Real-Time SOS Victim Discovery & Alerting
+- When Device A triggers SOS:
+  - Top-level `coords`, `currentLocation`, `userName`, and `activatedAt` are committed to Firestore `/sos_records/{incidentId}` with status `"ACTIVE"`.
+- On Peer Volunteer Devices (Devices B, C, D):
+  - A real-time `onSnapshot` query on `/sos_records` (`status == "ACTIVE"`) intercepts the distress event in under 300ms.
+  - Calculates live distance between volunteer and victim using Haversine formula (`calculateDistance`).
+  - Triggers a tactile vibration pattern (`[300, 100, 300, 100, 500]`) and displays a high-priority floating emergency alert banner across the top of both [MapScreen.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/pages/MapScreen.tsx) and [CommunityScreen.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/pages/CommunityScreen.tsx).
+  - Displays a pulsing red radar beacon (`🚨 SOS`) at the exact victim coordinates on [InteractiveMap.tsx](file:///Users/ritesh/Documents/Rakshika/Rakshika/src/components/map/InteractiveMap.tsx).
+
+### C. 1-Tap "Start Driving to Victim" Route Navigation
+- Clicking **"🚗 Start Driving"** on the floating alert banner or on the victim's map popup:
+  1. Instantly sets the navigation target destination to the victim's coordinates (`alert.coords`).
+  2. Sets the route profile to `"driving-car"`.
+  3. Invokes `startNavigation()`, triggering OSRM routing to plot the live vehicle route to the victim.
+  4. Automatically frames the map to encompass both responder and victim (`fitBounds`).
+  5. Opens the `NavigationPanel` with live turn-by-turn routing instructions, ETA, and distance remaining.
+
+
+
 
 

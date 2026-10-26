@@ -175,11 +175,13 @@ export const DualCameraView: React.FC<DualCameraViewProps> = ({
         <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
           <span className="bg-black/60 backdrop-blur-md text-amber-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg border border-white/10 flex items-center gap-1 shadow-xs">
             <Video className="w-3 h-3 text-amber-400" />
-            {status.primaryLens === "environment" ? "Rear: Scene" : "Front: Victim Face"}
+            {status.activeLayout === "SPLIT"
+              ? "Dual Split View (50/50)"
+              : status.primaryLens === "environment" ? "Rear: Scene" : "Front: Victim Face"}
           </span>
           {status.isDualConcurrent && (
             <span className="bg-black/60 backdrop-blur-md text-sky-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg border border-white/10 flex items-center gap-1 shadow-xs">
-              PiP: {status.primaryLens === "environment" ? "Front" : "Rear"}
+              {status.activeLayout === "SPLIT" ? "Split: Rear + Front" : `PiP: ${status.primaryLens === "environment" ? "Front" : "Rear"}`}
             </span>
           )}
         </div>
@@ -219,23 +221,23 @@ export const DualCameraView: React.FC<DualCameraViewProps> = ({
           <span>Flip Lens</span>
         </button>
 
-        {/* Switch Layout (PiP <-> Split) */}
+        {/* Switch Layout (Split <-> PiP) */}
         {status.isDualConcurrent && (
           <button
             type="button"
             onClick={handleToggleLayout}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white rounded-xl text-xs font-bold border border-slate-700 transition-all shadow-xs"
-            title="Toggle between Picture-in-Picture and Split Screen View"
+            title="Toggle between Split-Screen and Picture-in-Picture View"
           >
-            {status.activeLayout === "PIP" ? (
+            {status.activeLayout === "SPLIT" ? (
               <>
-                <Columns className="w-3.5 h-3.5 text-sky-400" />
-                <span>Split View</span>
+                <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
+                <span>PiP View</span>
               </>
             ) : (
               <>
-                <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
-                <span>PiP Inset</span>
+                <Columns className="w-3.5 h-3.5 text-sky-400" />
+                <span>Split View</span>
               </>
             )}
           </button>

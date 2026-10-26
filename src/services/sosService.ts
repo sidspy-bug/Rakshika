@@ -273,15 +273,23 @@ export async function syncSosToFirebase(incidentId?: string): Promise<{
       return { success: false, incident: targetIncident };
     }
 
+    const lastLoc = targetIncident.locationHistory && targetIncident.locationHistory.length > 0
+      ? targetIncident.locationHistory[targetIncident.locationHistory.length - 1]
+      : null;
+    const coords = lastLoc ? { lat: lastLoc.lat, lng: lastLoc.lng } : null;
+
     // Attempt real Firebase sync with 5-second timeout safeguard
     const syncPromise = setDoc(
       doc(db, "sos_records", targetIncident.id),
       {
         id: targetIncident.id,
         userId: targetIncident.userId,
+        userName: targetIncident.userEmail?.split("@")[0] || "Rakshika User in Distress",
         userEmail: targetIncident.userEmail,
         userPhone: targetIncident.userPhone,
         status: targetIncident.status,
+        coords,
+        currentLocation: coords,
         activatedAt: targetIncident.activatedAt,
         resolvedAt: targetIncident.resolvedAt || null,
         locationHistory: targetIncident.locationHistory,

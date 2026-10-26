@@ -42,7 +42,7 @@ export class DualCameraService {
   private isRunning: boolean = false;
   private isDualConcurrent: boolean = false;
   private primaryLens: "environment" | "user" = "environment";
-  private layoutMode: DualLayoutMode = "PIP";
+  private layoutMode: DualLayoutMode = "SPLIT";
   private isTorchOn: boolean = false;
 
   private currentCoords: { lat: number; lng: number } | null = null;
@@ -190,30 +190,30 @@ export class DualCameraService {
       const mainVideo = this.primaryLens === "environment" ? this.rearVideo : this.frontVideo;
       const insetVideo = this.primaryLens === "environment" ? this.frontVideo : this.rearVideo;
 
-      // Mode A: Split-Screen View (Side-by-Side 50/50)
+      // Mode A: Split-Screen View (Side-by-Side 50/50 Dual Lens)
       if (this.layoutMode === "SPLIT" && this.isDualConcurrent && this.frontVideo && this.rearVideo) {
         const halfWidth = width / 2;
 
-        // Draw Left: Rear (Environment)
+        // Draw Left: Rear (Attacker & Environment Scene)
         if (this.rearVideo.readyState >= 2) {
-          this.ctx.drawImage(this.rearVideo, 0, 0, halfWidth, height);
+          this.drawImageCover(this.rearVideo, 0, 0, halfWidth, height);
         }
-        // Draw Right: Front (Victim)
+        // Draw Right: Front (Victim Face & Immediate Danger)
         if (this.frontVideo.readyState >= 2) {
-          this.ctx.drawImage(this.frontVideo, halfWidth, 0, halfWidth, height);
+          this.drawImageCover(this.frontVideo, halfWidth, 0, halfWidth, height);
         }
 
-        // Divider
+        // Center Illuminated Divider Line
         this.ctx.strokeStyle = "#ef4444";
-        this.ctx.lineWidth = 2;
+        this.ctx.lineWidth = 3;
         this.ctx.beginPath();
         this.ctx.moveTo(halfWidth, 0);
         this.ctx.lineTo(halfWidth, height);
         this.ctx.stroke();
 
-        // Lens Badges
-        this.drawBadge("REAR: ENVIRONMENT", 10, 24, "#000000aa", "#38bdf8");
-        this.drawBadge("FRONT: VICTIM", halfWidth + 10, 24, "#000000aa", "#fbbf24");
+        // High-Visibility Badges
+        this.drawBadge("REAR: SCENE / ATTACKER", 10, 24, "#000000cc", "#38bdf8");
+        this.drawBadge("FRONT: VICTIM FACE", halfWidth + 10, 24, "#000000cc", "#fbbf24");
       }
       // Mode B: Picture-in-Picture View (PiP)
       else {
@@ -256,6 +256,35 @@ export class DualCameraService {
     };
 
     this.animFrameId = requestAnimationFrame(render);
+  }
+
+  private drawImageCover(
+    video: HTMLVideoElement,
+    dx: number,
+    dy: number,
+    dWidth: number,
+    dHeight: number
+  ): void {
+    if (!this.ctx) return;
+    const vWidth = video.videoWidth || 640;
+    const vHeight = video.videoHeight || 480;
+    const targetRatio = dWidth / dHeight;
+    const videoRatio = vWidth / vHeight;
+
+    let sWidth = vWidth;
+    let sHeight = vHeight;
+    let sx = 0;
+    let sy = 0;
+
+    if (videoRatio > targetRatio) {
+      sWidth = vHeight * targetRatio;
+      sx = (vWidth - sWidth) / 2;
+    } else {
+      sHeight = vWidth / targetRatio;
+      sy = (vHeight - sHeight) / 2;
+    }
+
+    this.ctx.drawImage(video, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
   }
 
   private drawBadge(text: string, x: number, y: number, bg: string, color: string): void {

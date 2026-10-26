@@ -5,6 +5,8 @@ import type { Coords, HelpCenter, Incident } from "../../types/gis";
 import type { RouteSummary, Waypoint } from "../../types/navigation";
 import { Navigation, Loader2, Plus, Minus, Layers } from "lucide-react";
 
+import type { VolunteerPeer, ActiveSosAlert } from "../../services/volunteerPresenceService";
+
 interface InteractiveMapProps {
   userLocation?: Coords;
   center?: Coords;
@@ -21,6 +23,9 @@ interface InteractiveMapProps {
   onMapClick?: (coords: Coords, address: string) => void;
   onClearDestination?: () => void;
   isSimulating?: boolean;
+  volunteers?: VolunteerPeer[];
+  activeSosAlerts?: ActiveSosAlert[];
+  onRespondToSos?: (alert: ActiveSosAlert) => void;
 }
 
 export function InteractiveMap({
@@ -38,6 +43,9 @@ export function InteractiveMap({
   onMarkerSelect,
   onMapClick,
   isSimulating = false,
+  volunteers = [],
+  activeSosAlerts = [],
+  onRespondToSos,
 }: InteractiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -46,6 +54,8 @@ export function InteractiveMap({
   const userMarkerRef = useRef<L.Marker | null>(null);
   const waypointsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const centersLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const volunteersLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const sosAlertsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const routePolylineRef = useRef<L.LayerGroup | null>(null);
   const activeTileLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
@@ -94,6 +104,8 @@ export function InteractiveMap({
     // Create layer groups
     centersLayerGroupRef.current = L.layerGroup().addTo(map);
     waypointsLayerGroupRef.current = L.layerGroup().addTo(map);
+    volunteersLayerGroupRef.current = L.layerGroup().addTo(map);
+    sosAlertsLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapRef.current = map;
 
@@ -413,6 +425,112 @@ export function InteractiveMap({
       centerMarker.addTo(group);
     });
   }, [emergencyCentersKey, onMarkerSelect]);
+
+  // 6. Render Real-Time Peer Volunteers on Map
+  useEffect(() => {
+    const group = volunteersLayerGroupRef.current;
+    if (!group) return;
+
+    group.clearLayers();
+
+    volunteers.forEach((v) => {
+      const vIcon = L.divIcon({
+        className: "volunteer-marker-pin",
+        html: `
+          <div class="relative flex items-center justify-center cursor-pointer transition-transform hover:scale-125">
+            <span class="absolute w-8 h-8 rounded-full bg-cyan-400 opacity-40 animate-ping"></span>
+            <div class="relative z-10 w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-600 via-sky-500 to-blue-600 border-2 border-white shadow-xl flex items-center justify-center text-white text-xs font-bold shadow-cyan-500/50">
+              🛡️
+            </div>
+            <span class="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>
+          </div>
+        `,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+      });
+
+      const marker = L.marker([v.coords.lat, v.coords.lng], { icon: vIcon });
+      marker.bindTooltip(
+        `
+        <div class="p-1.5 text-xs font-bold text-slate-900 bg-white/95 rounded-xl shadow-xl border border-cyan-300 backdrop-blur-md">
+          <p class="font-extrabold text-cyan-700 flex items-center gap-1">🛡️ ${v.name}</p>
+          <p class="text-[10px] text-gray-600 mt-0.5">
+            ${v.distanceMeters ? `${v.distanceMeters}m away • ` : ""}${v.role}
+          </p>
+          <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-bold mt-1">Live Online</span>
+        </div>
+        `,
+        { permanent: false, direction: "top", offset: [0, -14] }
+      );
+
+      marker.addTo(group);
+    });
+  }, [volunteers]);
+
+  // 7. Render Active SOS Emergency Victims on Map (Pulsing Red Radar)
+  useEffect(() => {
+    const group = sosAlertsLayerGroupRef.current;
+    const map = mapRef.current;
+    if (!group) return;
+
+    group.clearLayers();
+
+    activeSosAlerts.forEach((alert) => {
+      const sosIcon = L.divIcon({
+        className: "active-sos-victim-pin",
+        html: `
+          <div class="relative flex items-center justify-center cursor-pointer transition-transform hover:scale-125">
+            <span class="absolute w-14 h-14 rounded-full bg-red-600 opacity-60 animate-ping"></span>
+            <span class="absolute w-10 h-10 rounded-full bg-red-500 opacity-80 animate-pulse"></span>
+            <div class="relative z-10 w-11 h-11 rounded-full bg-gradient-to-tr from-red-600 via-rose-600 to-red-800 border-2 border-white shadow-2xl flex items-center justify-center text-white text-lg font-black shadow-red-600/70">
+              🚨
+            </div>
+            <span class="absolute -top-1 -right-1 px-1.5 py-0.2 bg-red-600 text-white font-black text-[9px] rounded-full border border-white animate-bounce shadow">SOS</span>
+          </div>
+        `,
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+      });
+
+      const marker = L.marker([alert.coords.lat, alert.coords.lng], { icon: sosIcon, zIndexOffset: 1000 });
+      marker.bindPopup(
+        `
+        <div class="p-2.5 font-sans min-w-[210px] text-gray-900">
+          <div class="flex items-center gap-1.5 text-red-600 font-black text-[11px] uppercase tracking-wider mb-1">
+            <span class="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
+            EMERGENCY SOS ACTIVE
+          </div>
+          <h4 class="font-extrabold text-sm text-gray-950">${alert.victimName}</h4>
+          <p class="text-xs text-gray-600 mt-1 font-semibold">
+            📍 Distance: <strong class="text-red-600">${alert.distanceMeters ? `${alert.distanceMeters} meters` : "Nearby"}</strong>
+          </p>
+          <button id="sos-btn-${alert.id}" class="mt-3 w-full py-2 px-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl text-xs font-black shadow-lg shadow-red-600/30 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
+            🚗 Start Driving to Victim
+          </button>
+        </div>
+        `
+      );
+
+      marker.on("popupopen", () => {
+        const btn = document.getElementById(`sos-btn-${alert.id}`);
+        if (btn && onRespondToSos) {
+          btn.onclick = () => onRespondToSos(alert);
+        }
+      });
+
+      marker.addTo(group);
+    });
+
+    // If there's an emergency alert, smoothly adjust view to show both user and victim
+    if (activeSosAlerts.length > 0 && map && !isSimulating) {
+      const nearest = activeSosAlerts[0];
+      const bounds = L.latLngBounds([
+        [userLocation.lat, userLocation.lng],
+        [nearest.coords.lat, nearest.coords.lng],
+      ]);
+      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17, animate: true });
+    }
+  }, [activeSosAlerts, userLocation, isSimulating, onRespondToSos]);
 
   const handleRecenter = () => {
     const map = mapRef.current;

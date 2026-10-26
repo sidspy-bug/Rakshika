@@ -16,7 +16,16 @@ import {
   Pill,
   Building2,
   Users,
+  Car,
+  ShieldAlert,
+  Radio,
 } from "lucide-react";
+import { useCallback } from "react";
+import {
+  volunteerPresenceService,
+  type VolunteerPeer,
+  type ActiveSosAlert,
+} from "../services/volunteerPresenceService";
 import { Button } from "../components/ui/Button";
 import { GlassCard } from "../components/ui/GlassCard";
 import { InteractiveMap } from "../components/map/InteractiveMap";
@@ -52,6 +61,10 @@ export function MapScreen() {
   // Network and Offline Maps States
   const { isOnline } = useNetworkStatus();
   const [showOfflineManager, setShowOfflineManager] = useState(false);
+
+  // Real-Time Cross-Device Peer Volunteers & Active SOS Alerts
+  const [peerVolunteers, setPeerVolunteers] = useState<VolunteerPeer[]>([]);
+  const [activeSosAlerts, setActiveSosAlerts] = useState<ActiveSosAlert[]>([]);
 
   const {
     helpCenters,
@@ -156,6 +169,65 @@ export function MapScreen() {
       enqueueLocation(telemetryPayload);
     }
   }, [userLocation, isOnline]);
+
+  // Real-Time Volunteer Presence Publishing & Cross-Device Emergency Mesh Subscription
+  useEffect(() => {
+    if (!userLocation) return;
+
+    // 1. Publish own device presence in Firestore
+    volunteerPresenceService.initPresence(userLocation).catch(() => {});
+    volunteerPresenceService.updateLocation(userLocation).catch(() => {});
+
+    // 2. Subscribe to real-time peer volunteers
+    const unsubVolunteers = volunteerPresenceService.subscribeVolunteers(
+      userLocation,
+      (list) => {
+        setPeerVolunteers(list);
+      }
+    );
+
+    // 3. Subscribe to real-time Active SOS emergencies from other devices
+    const unsubAlerts = volunteerPresenceService.subscribeActiveSosAlerts(
+      userLocation,
+      (alerts) => {
+        setActiveSosAlerts(alerts);
+        if (alerts.length > 0 && typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate([300, 100, 300, 100, 500]);
+          } catch {}
+        }
+      }
+    );
+
+    return () => {
+      unsubVolunteers();
+      unsubAlerts();
+    };
+  }, [userLocation.lat, userLocation.lng]);
+
+  // Handle Volunteer Response: Set driving route to victim and start turn-by-turn navigation!
+  const handleRespondToSos = useCallback(
+    (alert: ActiveSosAlert) => {
+      clearWaypoints();
+      addWaypoint({
+        name: `🚨 Victim: ${alert.victimName}`,
+        lat: alert.coords.lat,
+        lng: alert.coords.lng,
+      });
+      setProfile("driving-car");
+      startNavigation();
+      setSelectedPoi({
+        id: `sos-victim-${alert.id}`,
+        name: `🚨 SOS: ${alert.victimName}`,
+        type: "police",
+        lat: alert.coords.lat,
+        lng: alert.coords.lng,
+        address: `Victim in distress (${alert.distanceMeters || 0}m away)`,
+        distance: (alert.distanceMeters || 0) / 1000,
+      });
+    },
+    [addWaypoint, clearWaypoints, setProfile, startNavigation]
+  );
 
   // Fast location-biased search handling
   useEffect(() => {
@@ -391,6 +463,35 @@ export function MapScreen() {
         )}
       </div>
 
+      {/* Floating Emergency Alert Banner for Volunteers */}
+      {activeSosAlerts.length > 0 && (
+        <div className="absolute top-24 left-3 right-3 z-40 bg-gradient-to-r from-red-600 via-rose-600 to-red-800 text-white p-3.5 rounded-2xl shadow-2xl border border-red-400 flex items-center justify-between animate-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30 animate-pulse">
+              <ShieldAlert className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-red-200 block">
+                🚨 SOS Triggered Nearby!
+              </span>
+              <h4 className="text-xs font-black text-white">
+                {activeSosAlerts[0].victimName}
+              </h4>
+              <p className="text-[10px] text-white/80">
+                {activeSosAlerts[0].distanceMeters ? `${activeSosAlerts[0].distanceMeters}m away from your location` : "Immediate area"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleRespondToSos(activeSosAlerts[0])}
+            className="px-3 py-2 bg-white text-red-600 hover:bg-gray-100 rounded-xl text-xs font-black shadow-lg flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform cursor-pointer"
+          >
+            <Car className="w-4 h-4 text-red-600" />
+            <span>Start Driving</span>
+          </button>
+        </div>
+      )}
+
       {/* Main Interactive Map Component */}
       <InteractiveMap
         userLocation={userLocation}
@@ -405,6 +506,9 @@ export function MapScreen() {
         onMapClick={handleMapTap}
         onClearDestination={handleClearDestination}
         isSimulating={isSimulating}
+        volunteers={peerVolunteers}
+        activeSosAlerts={activeSosAlerts}
+        onRespondToSos={handleRespondToSos}
       />
 
       {/* Floating POI Detail Card (When user taps any marker or map pin) */}

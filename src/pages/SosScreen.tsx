@@ -148,7 +148,7 @@ export function SosScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [showStandbyCamera, setShowStandbyCamera] = useState(false);
   const [enableVideoEvidence, setEnableVideoEvidence] = useState<boolean>(() => {
-    return localStorage.getItem("rakshika_enable_video_evidence") === "true";
+    return localStorage.getItem("rakshika_enable_video_evidence") !== "false";
   });
 
   const toggleVideoEvidence = (enabled: boolean) => {
