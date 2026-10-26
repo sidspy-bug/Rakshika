@@ -193,7 +193,7 @@ export function AddContactModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center"
+        className="fixed inset-0 z-[100] bg-black/75 flex items-end sm:items-center justify-center p-0 sm:p-4"
         onClick={(e) => {
           if (e.target === e.currentTarget && !isSaving) onClose();
         }}
@@ -203,12 +203,12 @@ export function AddContactModal({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto"
+          className="w-full max-w-md bg-white rounded-t-xl sm:rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-200"
         >
           {/* Header */}
-          <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 p-4 flex items-center justify-between z-10 rounded-t-3xl">
+          <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10 rounded-t-xl">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+              <div className="w-9 h-9 bg-red-50 border border-red-200 rounded-lg flex items-center justify-center text-[#D32F2F]">
                 <UserPlus className="w-5 h-5 text-[#D32F2F]" />
               </div>
               <div>

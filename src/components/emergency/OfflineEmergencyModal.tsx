@@ -403,23 +403,23 @@ ${landmarkText}
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 animate-in fade-in duration-150">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.98, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ duration: 0.2 }}
-            className="w-full max-w-lg bg-white rounded-3xl shadow-2xl flex flex-col h-[90vh] max-h-[720px] overflow-hidden border border-red-200"
+            exit={{ opacity: 0, scale: 0.98, y: 10 }}
+            transition={{ duration: 0.15 }}
+            className="w-full max-w-lg bg-white rounded-xl shadow-2xl flex flex-col h-[90vh] max-h-[720px] overflow-hidden border border-slate-200"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white px-5 py-3.5 shrink-0 flex items-center justify-between shadow-md">
+            <div className="bg-[#D32F2F] text-white px-4 py-3 shrink-0 flex items-center justify-between border-b border-red-800 shadow-xs">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center backdrop-blur-sm border border-white/20">
-                  <Radio className="w-5 h-5 text-white animate-pulse" />
+                <div className="w-9 h-9 rounded-lg bg-red-900 flex items-center justify-center border border-red-700">
+                  <Radio className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base sm:text-lg flex items-center gap-2">
-                    Offline SOS Chat
+                  <h3 className="font-bold text-base flex items-center gap-2">
+                    Offline SOS Comms
                   </h3>
                   <p className="text-xs text-red-100 font-medium flex items-center gap-1.5 mt-0.5">
                     {isOnline ? (
@@ -643,7 +643,7 @@ ${landmarkText}
                 </div>
               ) : (
                 <div className="space-y-2.5 flex-1 overflow-y-auto">
-                  <div className="flex items-center justify-between px-1 pb-1.5 border-b border-slate-700/60 sticky top-0 bg-slate-900/95 backdrop-blur-xs z-10">
+                  <div className="flex items-center justify-between px-1 pb-1.5 border-b border-slate-700/60 sticky top-0 bg-slate-900 z-10">
                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                       <MessageSquare className="w-3.5 h-3.5 text-red-400" />
                       Offline Messages ({messages.length})

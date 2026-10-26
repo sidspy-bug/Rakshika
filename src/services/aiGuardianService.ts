@@ -113,15 +113,15 @@ export function generateLocalEmergencyResponse(
   const policeName = nearestPolice?.name || "Nearest Police Station / Mahila Thana";
 
   const defaultActions: MessageAction[] = [
-    { type: "sos", label: "🚨 Trigger SOS" },
-    { type: "call_police", label: "📞 Call 112 Police", phone: "112" },
-    { type: "call_women_helpline", label: "📞 Women Helpline 181", phone: "181" },
+    { type: "sos", label: "Trigger Emergency SOS" },
+    { type: "call_police", label: "Call 112 Police", phone: "112" },
+    { type: "call_women_helpline", label: "Women Helpline (181)", phone: "181" },
   ];
 
   if (nearestPolice) {
     defaultActions.unshift({
       type: "route_police",
-      label: `🗺️ Auto-Route to ${nearestPolice.name.slice(0, 18)}...`,
+      label: `Route to ${nearestPolice.name.slice(0, 18)}...`,
       dest: { lat: nearestPolice.lat, lng: nearestPolice.lng, name: nearestPolice.name },
     });
   }
@@ -138,21 +138,21 @@ export function generateLocalEmergencyResponse(
     query.includes("chase")
   ) {
     return {
-      content: `⚠️ **PINCH SITUATION ALERT — STAY CALM & ACT FAST**
+      content: `### EMERGENCY DIRECTIVE — STAY CALM & ACT FAST
 
-📍 **Location Lock:** You are currently at **${currentAddress}**.
+**Location:** ${currentAddress}
 
-🛡️ **IMMEDIATE SAFETY DIRECTIVES:**
+**IMMEDIATE SAFETY ACTIONS:**
 1. **DO NOT Walk Home Directly:** Cross the street or turn into a brightly lit commercial area (shop, 24/7 petrol pump, hotel lobby, or metro station).
-2. **Create Instant Deterrence:** Make a loud phone call or tap the **Fake Call** button below. Speak loudly: *"I am at ${currentAddress}, meet me outside in 2 minutes."*
+2. **Create Instant Deterrence:** Make a loud phone call or tap **Trigger Fake Call** below. Speak loudly: *"I am at ${currentAddress}, meet me outside in 2 minutes."*
 3. **Head to Safe Haven:** Walk toward **${policeName}** (${policeDist}).
 
-🚨 *If you are being actively confronted, press the red SOS button immediately or dial 112.*`,
+*If you are being actively confronted, trigger SOS immediately or call 112.*`,
       actions: [
-        { type: "sos", label: "🚨 Press SOS Now" },
-        { type: "fake_call", label: "📱 Trigger Fake Call" },
-        { type: "call_police", label: "📞 Call 112 PCR", phone: "112" },
-        { type: "call_women_helpline", label: "📞 Call 181 Women Helpline", phone: "181" },
+        { type: "sos", label: "Trigger Emergency SOS" },
+        { type: "fake_call", label: "Trigger Fake Call" },
+        { type: "call_police", label: "Call 112 Police", phone: "112" },
+        { type: "call_women_helpline", label: "Women Helpline (181)", phone: "181" },
       ],
     };
   }
@@ -167,20 +167,20 @@ export function generateLocalEmergencyResponse(
     query.includes("driver")
   ) {
     return {
-      content: `🚗 **SUSPICIOUS VEHICLE / RIDE SAFETY PROTOCOL**
+      content: `### SUSPICIOUS VEHICLE / RIDE PROTOCOL
 
-📍 **Location Track:** Currently passing **${currentAddress}**.
+**Location:** Passing ${currentAddress}
 
-🛡️ **ACTIONS TO TAKE RIGHT NOW:**
+**ACTIONS TO TAKE RIGHT NOW:**
 1. **Share Ride Details Loudly:** Speak on the phone (or fake call) reading out loud: *"I am in cab near ${currentAddress}, tracking live location."*
 2. **Keep Doors Unlocked & Hand Ready:** Ensure child-lock is off and keep your hand near the door latch.
 3. **Request Stop at Public Spot:** Tell the driver to pull over at a well-lit petrol pump or metro station if he strays from the GPS route.
 
-📞 *If driver refuses to stop or locks doors, press SOS immediately or dial 112.*`,
+*If driver refuses to stop or locks doors, trigger SOS immediately or call 112.*`,
       actions: [
-        { type: "sos", label: "🚨 Trigger SOS" },
-        { type: "call_police", label: "📞 Call 112 Police", phone: "112" },
-        { type: "fake_call", label: "📱 Fake Incoming Call" },
+        { type: "sos", label: "Trigger Emergency SOS" },
+        { type: "call_police", label: "Call 112 Police", phone: "112" },
+        { type: "fake_call", label: "Trigger Fake Call" },
       ],
     };
   }
@@ -201,18 +201,18 @@ export function generateLocalEmergencyResponse(
       : "nearby";
 
     return {
-      content: `🏥 **MEDICAL EMERGENCY DIRECTIVE**
+      content: `### MEDICAL EMERGENCY DIRECTIVE
 
-📍 **Location:** **${currentAddress}**.
+**Location:** ${currentAddress}
 
-🩺 **IMMEDIATE STEPS:**
+**IMMEDIATE STEPS:**
 1. **Nearest Hospital:** Head to **${hospName}** (${hospDist}).
 2. **Ambulance Dispatch:** Call **102** (Ambulance) or **108** (Emergency Services) immediately.
 3. **Stay in Public View:** Sit in a safe, visible area while help arrives.`,
       actions: [
-        { type: "call_police", label: "🚑 Call 102 Ambulance", phone: "102" },
-        { type: "call_police", label: "📞 Call 112 Emergency", phone: "112" },
-        { type: "sos", label: "🚨 Alert Emergency Contacts" },
+        { type: "call_police", label: "Call 102 Ambulance", phone: "102" },
+        { type: "call_police", label: "Call 112 Emergency", phone: "112" },
+        { type: "sos", label: "Alert Emergency Contacts" },
       ],
     };
   }
@@ -226,9 +226,9 @@ export function generateLocalEmergencyResponse(
     query.includes("home")
   ) {
     return {
-      content: `📍 **SAFE ROUTE NAVIGATION — ${currentAddress}**
+      content: `### SAFE ROUTE NAVIGATION — ${currentAddress}
 
-🛡️ **RECOMMENDED WALKING STRATEGY:**
+**RECOMMENDED WALKING STRATEGY:**
 1. Use **Rakshika Safe Walk Grid** on the Map Screen for lit-street navigation.
 2. **Nearest Police Post:** **${policeName}** (${policeDist}).
 3. Avoid dark shortcuts or unlit alleyways. Stick to primary roads with CCTV coverage.`,
@@ -259,31 +259,31 @@ export function generateLocalEmergencyResponse(
     const targetPolice = wantsWomenPolice && dedicatedWomenPolice ? dedicatedWomenPolice : nearestPolice;
 
     const policeActions: MessageAction[] = [
-      { type: "sos", label: "🚨 Trigger SOS" },
-      { type: "call_police", label: "📞 Call 112 PCR", phone: targetPolice?.phone || "112" },
-      { type: "call_women_helpline", label: "📞 Women Helpline 181", phone: "181" },
+      { type: "sos", label: "Trigger Emergency SOS" },
+      { type: "call_police", label: "Call 112 Police", phone: targetPolice?.phone || "112" },
+      { type: "call_women_helpline", label: "Women Helpline (181)", phone: "181" },
     ];
 
     if (targetPolice) {
       policeActions.unshift({
         type: "route_police",
-        label: `🗺️ Auto-Route to ${targetPolice.name.slice(0, 20)}`,
+        label: `Route to ${targetPolice.name.slice(0, 20)}`,
         dest: { lat: targetPolice.lat, lng: targetPolice.lng, name: targetPolice.name },
       });
     }
 
     if (wantsWomenPolice && !dedicatedWomenPolice && nearestPolice) {
       return {
-        content: `👮 **POLICE ASSISTANCE & WOMEN SAFETY ADVISORY**
+        content: `### POLICE ASSISTANCE & WOMEN SAFETY ADVISORY
 
-📍 **Live Location Lock:** **${currentAddress}**.
+**Location:** ${currentAddress}
 
 The nearest police facility to your coordinates is **${nearestPolice.name}** (~${Math.round(nearestPolice.distance || 0)}m away).
 
-⚠️ *Please note: This is a **General Police Station** (not a dedicated Mahila Thana), but it has duty officers and PCR units equipped to handle women distress calls immediately.*
+*Note: This is a General Police Station (with duty officers and PCR units equipped to handle women distress calls immediately).*
 
-🛡️ **RECOMMENDED ACTIONS:**
-1. **Tap Auto-Route Below:** Follow live turn-by-turn navigation on the map to reach **${nearestPolice.name}** safely.
+**RECOMMENDED ACTIONS:**
+1. **Tap Route Below:** Follow live turn-by-turn navigation on the map to reach **${nearestPolice.name}** safely.
 2. **Contact National Women Helpline:** Call **181** (24/7 Women in Distress / NCW) or **112** (Police Emergency).
 3. **Stay in Lit Surroundings:** Walk along main roads with CCTV and lighting. Avoid taking deserted shortcuts.`,
         actions: policeActions,
@@ -295,29 +295,29 @@ The nearest police facility to your coordinates is **${nearestPolice.name}** (~$
     const facilityDist = targetPolice?.distance ? `~${Math.round(targetPolice.distance)}m away` : "nearby";
 
     return {
-      content: `👮 **NEAREST ${facilityTypeLabel.toUpperCase()}**
+      content: `### NEAREST ${facilityTypeLabel.toUpperCase()}
 
-📍 **Live Location Lock:** **${currentAddress}**.
+**Location:** ${currentAddress}
 
 The closest verified police facility is **${facilityName}** (${facilityDist}).
 
-🛡️ **RECOMMENDED ACTIONS:**
-1. **Tap Auto-Route Below:** Open live turn-by-turn map navigation to guide you directly to **${facilityName}**.
+**RECOMMENDED ACTIONS:**
+1. **Tap Route Below:** Open live turn-by-turn map navigation to guide you directly to **${facilityName}**.
 2. **Immediate Assistance:** Dial **112** for instant police emergency dispatch or **181** for the Women Helpline.
-3. **Emergency Alert:** If you feel in danger right now, tap **Trigger SOS** to alert your emergency contacts and nearby verified volunteers.`,
+3. **Emergency Alert:** If you feel in danger right now, tap **Trigger Emergency SOS** to alert your emergency contacts and nearby verified volunteers.`,
       actions: policeActions,
     };
   }
 
   // 6. Default General Safety Advisory
   return {
-    content: `🛡️ **RAKSHIKA SAFETY GUARDIAN ACTIVE**
+    content: `### RAKSHIKA SAFETY PROTOCOL ACTIVE
 
-📍 **Current Location:** **${currentAddress}**.
-👮 **Nearest Help Center:** **${policeName}** (${policeDist}).
+**Location:** ${currentAddress}
+**Nearest Help Center:** ${policeName} (${policeDist})
 
-I am actively monitoring your safety grid. If you feel uncomfortable or sense danger:
-- **Press SOS** to notify your trusted contacts and local responders instantly.
+Active location monitoring is engaged. If you feel uncomfortable or sense danger:
+- **Trigger Emergency SOS** to notify your trusted contacts and local responders instantly.
 - **Dial 112** for emergency police dispatch or **181** for National Women's Helpline (24/7).
 - Head toward lit public spaces (petrol pumps, 24/7 stores, metro stations).`,
     actions: defaultActions,

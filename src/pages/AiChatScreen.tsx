@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Shield, Loader2, Sparkles, MapPin, Phone, AlertTriangle, PhoneCall, Navigation, Trash2 } from "lucide-react";
+import { Send, LifeBuoy, Loader2, MapPin, Phone, AlertTriangle, PhoneCall, Navigation, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useUserLocation } from "../hooks/useUserLocation";
 import { useGisData } from "../hooks/useGisData";
@@ -13,11 +13,11 @@ const ADDRESS_STORAGE_KEY = "rakshika_user_last_address";
 const INITIAL_WELCOME: AiMessage = {
   id: "1",
   role: "ai",
-  content: "Hello sister. I am Rakshika, your personal safety guardian. I am actively monitoring your location grid to keep you protected 24/7. Are you feeling safe right now or do you need emergency guidance?",
+  content: "Hello sister. I am Rakshika, your safety advisor. I am actively monitoring your location grid to keep you protected. Are you feeling safe right now or do you need emergency guidance?",
   actions: [
-    { type: "sos", label: "🚨 Press SOS" },
-    { type: "call_police", label: "📞 Call 112", phone: "112" },
-    { type: "call_women_helpline", label: "📞 181 Women Helpline", phone: "181" },
+    { type: "sos", label: "Trigger Emergency SOS" },
+    { type: "call_police", label: "Call Police (112)", phone: "112" },
+    { type: "call_women_helpline", label: "Women Helpline (181)", phone: "181" },
   ],
 };
 
@@ -148,31 +148,31 @@ export function AiChatScreen() {
   };
 
   const quickReplies = [
-    { label: "🚨 Being followed", text: "I think someone is following me on foot. What should I do right now?" },
-    { label: "🚗 Suspicious Cab", text: "I am in an auto/cab and the driver is taking a wrong dark route." },
-    { label: "🌑 Dark Street", text: "I am stranded in a dark deserted street. Give me safe path advice." },
-    { label: "🏥 Medical Help", text: "I need immediate medical emergency assistance." },
-    { label: "👮 Nearest Police", text: "Where is the nearest police station or Mahila Thana?" },
+    { label: "Being followed", text: "I think someone is following me on foot. What should I do right now?" },
+    { label: "Suspicious Cab Route", text: "I am in an auto/cab and the driver is taking a wrong dark route." },
+    { label: "Dark Street Hazard", text: "I am stranded in a dark deserted street. Give me safe path advice." },
+    { label: "Medical Distress", text: "I need immediate medical emergency assistance." },
+    { label: "Nearest Police / Thana", text: "Where is the nearest police station or Mahila Thana?" },
   ];
 
   return (
-    <div className="flex flex-col h-full bg-[#0d0d0e] relative text-white font-sans overflow-hidden">
+    <div className="flex flex-col h-full bg-slate-950 relative text-slate-100 font-sans overflow-hidden">
       {/* Top Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-black/90 backdrop-blur-xl sticky top-0 z-20 shadow-xl">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900 sticky top-0 z-20 shadow-xs">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-2xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
-            <Shield className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-lg bg-red-700 text-white flex items-center justify-center shrink-0">
+            <LifeBuoy className="w-5 h-5" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-sm text-white truncate">Rakshika AI Guardian</h2>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold border border-emerald-500/30 flex items-center gap-1 shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <h2 className="font-bold text-sm text-white truncate">Rakshika Safety Advisor</h2>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-950 border border-emerald-800 text-emerald-400 text-[10px] font-bold flex items-center gap-1.5 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                 ACTIVE
               </span>
             </div>
-            <p className="text-[11px] text-gray-400 flex items-center gap-1 line-clamp-1 mt-0.5">
-              <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+            <p className="text-[11px] text-slate-400 flex items-center gap-1 line-clamp-1 mt-0.5">
+              <MapPin className="w-3 h-3 text-red-400 shrink-0" />
               <span className="truncate">{currentAddress}</span>
             </p>
           </div>
@@ -180,7 +180,7 @@ export function AiChatScreen() {
 
         <button
           onClick={handleClearChat}
-          className="p-2 text-gray-400 hover:text-rose-400 rounded-xl hover:bg-gray-800 transition-colors shrink-0"
+          className="p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors shrink-0"
           title="Clear Chat History"
         >
           <Trash2 className="w-4 h-4" />
@@ -192,30 +192,30 @@ export function AiChatScreen() {
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in fade-in duration-200`}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in fade-in duration-150`}
           >
             <div
-              className={`max-w-[88%] rounded-2xl px-4 py-3 ${
+              className={`max-w-[88%] rounded-xl px-4 py-3 ${
                 msg.role === "user"
-                  ? "bg-gradient-to-r from-rose-600 to-red-700 text-white rounded-tr-sm shadow-lg shadow-rose-950/30"
-                  : "bg-gray-900/90 text-gray-100 rounded-tl-sm border border-gray-800 backdrop-blur-md shadow-2xl"
+                  ? "bg-[#D32F2F] text-white rounded-tr-xs shadow-xs"
+                  : "bg-slate-900 text-slate-100 rounded-tl-xs border border-slate-800 shadow-xs"
               }`}
             >
               <FormattedChatMessage content={msg.content} isUser={msg.role === "user"} />
 
               {/* Interactive Action Shortcuts for Emergency Situations */}
               {msg.actions && msg.actions.length > 0 && (
-                <div className="mt-3.5 pt-3 border-t border-gray-800/80 flex flex-wrap items-center gap-2">
+                <div className="mt-3.5 pt-3 border-t border-slate-800 flex flex-wrap items-center gap-2">
                   {msg.actions.map((act, idx) => (
                     <button
                       key={idx}
                       onClick={() => handleActionClick(act)}
-                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs active:scale-95 ${
                         act.type === "sos"
-                          ? "bg-rose-600 hover:bg-rose-500 text-white border border-rose-400/50 animate-pulse"
+                          ? "bg-red-700 hover:bg-red-800 text-white border border-red-600"
                           : act.type === "fake_call"
-                          ? "bg-purple-600 hover:bg-purple-500 text-white border border-purple-400/40"
-                          : "bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-gray-700"
+                          ? "bg-purple-700 hover:bg-purple-800 text-white border border-purple-600"
+                          : "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
                       }`}
                     >
                       {act.type === "sos" && <AlertTriangle className="w-3.5 h-3.5" />}
@@ -233,10 +233,10 @@ export function AiChatScreen() {
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-900/90 text-gray-300 rounded-2xl rounded-tl-sm px-4 py-3 border border-gray-800 flex items-center gap-2.5 backdrop-blur-md shadow-xl">
-              <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
-              <span className="text-xs font-semibold tracking-wide text-rose-300">
-                Analyzing Live GPS Grid & Safety Protocol...
+            <div className="bg-slate-900 text-slate-300 rounded-xl rounded-tl-xs px-4 py-3 border border-slate-800 flex items-center gap-2.5 shadow-xs">
+              <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+              <span className="text-xs font-semibold tracking-wide text-slate-300">
+                Checking GPS grid and emergency safety directives...
               </span>
             </div>
           </div>
@@ -245,24 +245,23 @@ export function AiChatScreen() {
       </div>
 
       {/* Input & Quick Reply Controls */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/95 to-transparent pt-6 pb-4 px-3.5 z-20">
+      <div className="absolute bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800/90 pt-3 pb-3 px-3.5 z-20">
         {/* Quick Pinch Scenario Chips */}
-        <div className="flex gap-2 overflow-x-auto pb-2.5 mb-1 no-scrollbar">
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-1.5 no-scrollbar">
           {quickReplies.map((qr, idx) => (
             <button
               key={idx}
               onClick={() => handleSend(qr.text)}
               disabled={isLoading}
-              className="whitespace-nowrap px-3 py-1.5 rounded-xl bg-gray-900/90 text-gray-200 text-[11px] font-bold border border-gray-800 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-800/60 transition-all flex items-center gap-1.5 shrink-0 shadow-md backdrop-blur-md"
+              className="whitespace-nowrap px-3 py-1.5 rounded-lg bg-slate-900 text-slate-300 text-xs font-semibold border border-slate-800 hover:bg-slate-800 hover:text-white transition-all flex items-center gap-1.5 shrink-0 shadow-xs active:scale-95"
             >
-              <Sparkles className="w-3 h-3 text-rose-400" />
               <span>{qr.label}</span>
             </button>
           ))}
         </div>
 
         {/* Input Bar */}
-        <div className="flex items-center gap-2 bg-gray-900/90 rounded-2xl border border-gray-800 shadow-2xl p-1.5 pl-3 focus-within:border-rose-500/60 transition-all backdrop-blur-xl">
+        <div className="flex items-center gap-2 bg-slate-900 rounded-xl border border-slate-800 p-1.5 pl-3 focus-within:border-slate-600 transition-all shadow-xs">
           <input
             type="text"
             value={input}
@@ -273,13 +272,13 @@ export function AiChatScreen() {
                 handleSend();
               }
             }}
-            placeholder="Describe your situation or emergency..."
-            className="flex-1 bg-transparent border-none outline-none text-xs font-medium text-white placeholder-gray-500 py-2"
+            placeholder="Type emergency status or safety question..."
+            className="flex-1 bg-transparent border-none outline-none text-xs font-medium text-white placeholder-slate-500 py-2"
           />
           <button
             onClick={() => handleSend()}
             disabled={!input.trim() || isLoading}
-            className="w-8 h-8 rounded-xl bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center disabled:opacity-40 disabled:bg-gray-800 transition-all shrink-0 shadow-md active:scale-95"
+            className="w-8 h-8 rounded-lg bg-[#D32F2F] hover:bg-red-700 text-white flex items-center justify-center disabled:opacity-40 disabled:bg-slate-800 transition-all shrink-0 active:scale-95"
           >
             <Send className="w-4 h-4" />
           </button>

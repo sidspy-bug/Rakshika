@@ -5,7 +5,7 @@ export function GlassCard({ className, children, ...props }: React.HTMLAttribute
   return (
     <div
       className={cn(
-        "bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl p-6",
+        "bg-white border border-slate-200/90 shadow-sm rounded-xl p-5 transition-all text-slate-900",
         className
       )}
       {...props}
@@ -14,3 +14,6 @@ export function GlassCard({ className, children, ...props }: React.HTMLAttribute
     </div>
   )
 }
+
+export const TactileCard = GlassCard;
+

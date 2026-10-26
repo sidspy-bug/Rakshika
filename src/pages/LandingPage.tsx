@@ -42,10 +42,10 @@ export const LandingPage = () => {
       >
         <header className="text-center mb-12 relative">
           <motion.div 
-            className="inline-block mb-4 p-4 rounded-full bg-white/50 shadow-xl backdrop-blur-md floating-element"
+            className="inline-block mb-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm"
             variants={itemVariants}
           >
-            <Shield className="w-16 h-16 text-pink-600" />
+            <Shield className="w-16 h-16 text-[#D32F2F]" />
           </motion.div>
           <motion.h1 
             className="text-6xl font-extrabold mb-4 tracking-tight"

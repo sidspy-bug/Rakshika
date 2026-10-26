@@ -347,14 +347,14 @@ export function MapScreen() {
       <div className="absolute top-3 left-3 right-3 z-30 flex flex-col gap-2 max-w-lg mx-auto">
         {/* Offline Warning Banner */}
         {!isOnline && (
-          <div className="bg-amber-600/90 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-2 shadow-2xl backdrop-blur-md border border-amber-500/20">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-100" />
+          <div className="bg-amber-800 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2 shadow-xs border border-amber-700">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-200" />
             <span>Offline Mode &bull; Using cached map routes</span>
           </div>
         )}
 
         {/* Search Input Box */}
-        <div className="relative bg-black/85 backdrop-blur-xl rounded-2xl border border-gray-800 shadow-2xl flex items-center px-3.5 py-2 transition-all focus-within:border-emerald-500/50">
+        <div className="relative bg-slate-900 rounded-lg border border-slate-700 shadow-xs flex items-center px-3.5 py-2 transition-all focus-within:border-emerald-500">
           <Search className="w-4 h-4 text-emerald-400 mr-2.5 shrink-0" />
           <input
             ref={searchInputRef}
@@ -371,19 +371,19 @@ export function MapScreen() {
               }
             }}
             disabled={isSimulating}
-            className="flex-1 bg-transparent border-none outline-none text-xs font-medium text-white placeholder-gray-500"
+            className="flex-1 bg-transparent border-none outline-none text-xs font-medium text-white placeholder-slate-400 py-1"
           />
           {searchQuery && (
             <button
               onClick={handleClearDestination}
-              className="p-1 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+              className="p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
           <button
             onClick={() => setShowOfflineManager(true)}
-            className="ml-2 p-1.5 rounded-xl bg-gray-900 border border-gray-800 text-emerald-400 hover:text-emerald-300 transition-colors"
+            className="ml-2 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-emerald-400 hover:text-emerald-300 transition-colors"
             title="Offline Maps"
           >
             <HardDrive className="w-3.5 h-3.5" />
@@ -392,7 +392,7 @@ export function MapScreen() {
 
         {/* Suggestion Dropdown */}
         {showSuggestions && suggestions.length > 0 && (
-          <div className="bg-black/95 border border-gray-800 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden divide-y divide-gray-900 max-h-72 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-xl overflow-hidden divide-y divide-slate-800 max-h-72 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
             {suggestions.map((place, idx) => {
               const isPolice = place.type === "police" || place.type === "women_police";
               const isHospital = place.type === "hospital";
@@ -403,7 +403,7 @@ export function MapScreen() {
                 <button
                   key={idx}
                   onClick={() => handleSelectSuggestion(place)}
-                  className="w-full text-left px-3.5 py-2.5 hover:bg-emerald-600/15 hover:text-emerald-300 transition-colors flex items-center gap-3"
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-slate-800 hover:text-emerald-300 transition-colors flex items-center gap-3"
                 >
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
@@ -456,7 +456,7 @@ export function MapScreen() {
         )}
 
         {searching && (
-          <div className="bg-black/90 border border-gray-800 rounded-xl p-2.5 text-center text-[11px] text-gray-400 flex items-center justify-center gap-2 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2 shadow-xs">
             <div className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
             Searching nearby safe locations...
           </div>
@@ -465,19 +465,19 @@ export function MapScreen() {
 
       {/* Floating Emergency Alert Banner for Volunteers */}
       {activeSosAlerts.length > 0 && (
-        <div className="absolute top-24 left-3 right-3 z-40 bg-gradient-to-r from-red-600 via-rose-600 to-red-800 text-white p-3.5 rounded-2xl shadow-2xl border border-red-400 flex items-center justify-between animate-in slide-in-from-top-4 duration-300">
+        <div className="absolute top-24 left-3 right-3 z-40 bg-[#D32F2F] text-white p-3 rounded-lg shadow-md border border-red-700 flex items-center justify-between animate-in slide-in-from-top-4 duration-300">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30 animate-pulse">
-              <ShieldAlert className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-red-900 flex items-center justify-center shrink-0 border border-red-700">
+              <ShieldAlert className="w-4 h-4 text-white" />
             </div>
             <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-red-200 block">
-                🚨 SOS Triggered Nearby!
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100 block">
+                EMERGENCY ALERT NEARBY
               </span>
-              <h4 className="text-xs font-black text-white">
+              <h4 className="text-xs font-bold text-white">
                 {activeSosAlerts[0].victimName}
               </h4>
-              <p className="text-[10px] text-white/80">
+              <p className="text-[10px] text-red-100">
                 {activeSosAlerts[0].distanceMeters ? `${activeSosAlerts[0].distanceMeters}m away from your location` : "Immediate area"}
               </p>
             </div>
@@ -514,22 +514,22 @@ export function MapScreen() {
       {/* Floating POI Detail Card (When user taps any marker or map pin) */}
       {selectedPoi && (
         <div className="absolute bottom-6 left-3 right-3 z-30 max-w-sm mx-auto animate-in slide-in-from-bottom-5 duration-200">
-          <GlassCard className="p-4 border border-gray-800 bg-black/90 text-white shadow-2xl relative backdrop-blur-xl">
+          <GlassCard className="p-4 border border-slate-800 bg-slate-900 text-white shadow-xl relative rounded-xl">
             <button
               onClick={() => setSelectedPoi(null)}
-              className="absolute top-3 right-3 p-1 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+              className="absolute top-3 right-3 p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
             <div className="flex gap-3">
               <div
-                className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                   "severity" in selectedPoi
                     ? selectedPoi.severity === "high"
                       ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
                       : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
                     : (selectedPoi as HelpCenter).type === "volunteer"
-                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse"
+                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
                     : (selectedPoi as HelpCenter).type === "police" || (selectedPoi as HelpCenter).type === "women_police"
                     ? "bg-blue-500/20 text-blue-400 border border-blue-500/40"
                     : (selectedPoi as HelpCenter).type === "hospital"
@@ -560,9 +560,9 @@ export function MapScreen() {
                 </div>
 
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-gray-800 text-gray-300">
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">
                     {"severity" in selectedPoi
-                      ? `⚠️ ${selectedPoi.severity} Risk Zone`
+                      ? `${selectedPoi.severity.toUpperCase()} RISK ZONE`
                       : (selectedPoi as HelpCenter).type.replace("_", " ")}
                   </span>
                   {"distance" in selectedPoi && selectedPoi.distance !== undefined && (
@@ -572,17 +572,17 @@ export function MapScreen() {
                   )}
                 </div>
 
-                <p className="text-[11px] text-gray-400 mt-2 leading-relaxed line-clamp-2">
+                <p className="text-[11px] text-slate-400 mt-2 leading-relaxed line-clamp-2">
                   {"description" in selectedPoi
                     ? selectedPoi.description
-                    : selectedPoi.address || "Certified safe haven listed on OpenStreetMap."}
+                    : selectedPoi.address || "Verified emergency haven on OpenStreetMap grid."}
                 </p>
 
                 {/* Action Buttons */}
                 <div className="mt-3.5 flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
-                    className="text-xs font-bold py-1.5 h-8 bg-emerald-600 hover:bg-emerald-500 flex items-center gap-1.5"
+                    className="text-xs font-bold py-1.5 h-8 bg-emerald-700 hover:bg-emerald-600 flex items-center gap-1.5 rounded-lg active:scale-95"
                     onClick={() => handleWalkSafelyHere(selectedPoi)}
                   >
                     <Navigation className="w-3.5 h-3.5 fill-current" />
@@ -592,7 +592,7 @@ export function MapScreen() {
                   {!("severity" in selectedPoi) && (selectedPoi as HelpCenter).phone && (
                     <a
                       href={`tel:${(selectedPoi as HelpCenter).phone}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/20 text-blue-300 text-xs font-bold hover:bg-blue-600/30 border border-blue-500/30 transition-colors h-8"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-300 text-xs font-bold hover:bg-blue-600/30 border border-blue-500/30 transition-colors h-8"
                     >
                       <Phone className="w-3.5 h-3.5" />
                       <span>Call {(selectedPoi as HelpCenter).phone}</span>
@@ -609,25 +609,25 @@ export function MapScreen() {
       {!selectedPoi && (
         <div className="absolute bottom-4 left-3 right-3 z-20 max-w-md mx-auto pointer-events-auto">
           {isSimulating ? (
-            <GlassCard className="border border-emerald-500/40 bg-black/90 text-white p-4 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+            <GlassCard className="border border-emerald-800 bg-slate-900 text-white p-4 shadow-xl relative overflow-hidden rounded-xl">
               <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+                    <Activity className="w-4 h-4 text-emerald-400" />
                     <span className="font-bold text-xs tracking-wide uppercase text-emerald-400">Live Trip Simulation</span>
                   </div>
-                  <div className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
-                    🛡️ {route?.safetyScore || 96}% Safe Path
+                  <div className="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-400 text-[10px] font-bold border border-emerald-800">
+                    {route?.safetyScore || 96}% Safe Path
                   </div>
                 </div>
                 <div>
                   <h3 className="font-bold text-sm line-clamp-1">Simulating Safe Walk Along Lit Corridor</h3>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Broadcasting live GPS breadcrumbs to emergency network...</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Broadcasting live GPS breadcrumbs to emergency network...</p>
                 </div>
-                <div className="w-full bg-gray-900 rounded-full h-1.5 overflow-hidden">
+                <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
                   <div className="bg-emerald-500 h-1.5 rounded-full animate-[progress_15s_infinite_linear]" style={{ width: "65%" }}></div>
                 </div>
-                <Button variant="danger" className="w-full font-bold h-10 text-xs" onClick={handleStopTrip}>
+                <Button variant="danger" className="w-full font-bold h-10 text-xs rounded-lg" onClick={handleStopTrip}>
                   Stop Simulation & Reset
                 </Button>
               </div>
@@ -648,21 +648,21 @@ export function MapScreen() {
             />
           ) : (
             /* Sleek Mini Status Bar when idle - DOES NOT BLOCK CONTROLS OR MAP */
-            <div className="bg-black/80 backdrop-blur-xl border border-gray-800/90 rounded-2xl p-2.5 px-3.5 flex items-center justify-between shadow-2xl">
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 px-3.5 flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></div>
                 <div className="min-w-0">
-                  <span className="text-[11px] font-bold text-gray-200 block truncate">
-                    🛡️ Rakshika Safe Grid Active
+                  <span className="text-[11px] font-bold text-slate-200 block truncate">
+                    Rakshika Safe Grid Active
                   </span>
-                  <span className="text-[10px] text-gray-400 block truncate">
+                  <span className="text-[10px] text-slate-400 block truncate">
                     {helpCenters.filter((c) => c.type === "volunteer").length} Volunteers live &bull; Tap map to route
                   </span>
                 </div>
               </div>
               <button
                 onClick={() => searchInputRef.current?.focus()}
-                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all active:scale-95 shrink-0"
+                className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition-all active:scale-95 shrink-0"
               >
                 Safe Route
               </button>
@@ -673,7 +673,7 @@ export function MapScreen() {
 
       {/* Offline Maps Modal Overlay */}
       {showOfflineManager && (
-        <div className="absolute inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-in fade-in duration-150">
           <OfflineManager userLocation={userLocation} onClose={() => setShowOfflineManager(false)} />
         </div>
       )}

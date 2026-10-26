@@ -121,10 +121,10 @@ export const DualCameraView: React.FC<DualCameraViewProps> = ({
 
   return (
     <div
-      className={`relative rounded-3xl overflow-hidden bg-slate-950 border border-red-500/30 shadow-2xl ${className}`}
+      className={`relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl ${className}`}
     >
       {/* ─── Top Forensic Bar ─── */}
-      <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-900/90 border-b border-slate-800 text-xs backdrop-blur-md">
+      <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-900 border-b border-slate-800 text-xs">
         <div className="flex items-center gap-2">
           <div className="relative flex items-center justify-center">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping absolute" />
@@ -173,14 +173,14 @@ export const DualCameraView: React.FC<DualCameraViewProps> = ({
 
         {/* Overlay Lens Badges on Viewport */}
         <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
-          <span className="bg-black/60 backdrop-blur-md text-amber-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg border border-white/10 flex items-center gap-1 shadow-xs">
+          <span className="bg-slate-950/90 text-amber-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-slate-700 flex items-center gap-1 shadow-xs">
             <Video className="w-3 h-3 text-amber-400" />
             {status.activeLayout === "SPLIT"
               ? "Dual Split View (50/50)"
               : status.primaryLens === "environment" ? "Rear: Scene" : "Front: Victim Face"}
           </span>
           {status.isDualConcurrent && (
-            <span className="bg-black/60 backdrop-blur-md text-sky-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg border border-white/10 flex items-center gap-1 shadow-xs">
+            <span className="bg-slate-950/90 text-sky-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-slate-700 flex items-center gap-1 shadow-xs">
               {status.activeLayout === "SPLIT" ? "Split: Rear + Front" : `PiP: ${status.primaryLens === "environment" ? "Front" : "Rear"}`}
             </span>
           )}
@@ -188,8 +188,8 @@ export const DualCameraView: React.FC<DualCameraViewProps> = ({
 
         {/* Live GPS Watermark Badge on Viewport */}
         {coords && (
-          <div className="absolute top-2.5 right-2.5 bg-black/65 backdrop-blur-md text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded-lg border border-emerald-500/30 shadow-xs z-10 flex items-center gap-1">
-            <Radio className="w-2.5 h-2.5 text-emerald-400 animate-pulse" />
+          <div className="absolute top-2.5 right-2.5 bg-slate-950/90 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded-md border border-emerald-800 shadow-xs z-10 flex items-center gap-1">
+            <Radio className="w-2.5 h-2.5 text-emerald-400" />
             <span>
               {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
             </span>
@@ -197,7 +197,7 @@ export const DualCameraView: React.FC<DualCameraViewProps> = ({
         )}
 
         {/* Bottom Hash Watermark Overlay */}
-        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[9px] font-mono text-slate-400 bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/10 z-10">
+        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[9px] font-mono text-slate-400 bg-slate-950/90 px-2.5 py-1 rounded-md border border-slate-700 z-10">
           <span className="text-slate-300 flex items-center gap-1">
             <Lock className="w-3 h-3 text-red-400" />
             SHA-256: {lastChunkHash || "PENDING"}

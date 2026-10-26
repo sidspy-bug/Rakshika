@@ -642,9 +642,32 @@ Rakshika/
   2. Sets the route profile to `"driving-car"`.
   3. Invokes `startNavigation()`, triggering OSRM routing to plot the live vehicle route to the victim.
   4. Automatically frames the map to encompass both responder and victim (`fitBounds`).
-  5. Opens the `NavigationPanel` with live turn-by-turn routing instructions, ETA, and distance remaining.
 
+## 19. Comprehensive Anti-AI-UI System Refactor & Tactile Emergency Design
 
+In accordance with the Anti-AI-UI specification (`https://github.com/Vanszs/Anti-AI-UI`), Rakshika underwent an end-to-end design refactor to eradicate common "AI slop" design tropes, blurry glassmorphism, and excessive emoji usage, replacing them with industrial, high-contrast, tactile emergency hardware aesthetics.
 
-
+### A. Core Violations Addressed & Eliminated
+1. **Glassmorphism Backdrop-Blur Eradication**:
+   - `GlassCard.tsx`: Replaced blurry translucent overlays (`bg-white/70 backdrop-blur-xl border-white/40 shadow-2xl rounded-3xl`) with solid, high-contrast tactile surfaces (`bg-white border border-slate-200/90 shadow-sm rounded-xl` and dark counterpart `bg-slate-900 border-slate-800`).
+   - Removed every instance of `backdrop-blur-*` across bottom navigation bars, floating headers, map action controls, camera HUD overlays, and modal dialogues.
+2. **Bottom Navigation De-Slop (`AppLayout.tsx`)**:
+   - Removed `Bot` icon and pulsing `Sparkles` badge on the advisory tab. Replaced with purposeful `LifeBuoy` icon and the label `"Advisor"` (Safety Advisor).
+   - Solidified navigation bar from `bg-white/80 backdrop-blur-lg` to native crisp `bg-white border-t border-slate-200 shadow-sm`.
+   - Replaced multi-gradient vibrating SOS top banner with high-contrast, solid crimson (`bg-[#D32F2F] border-b border-red-800`) bar.
+3. **Physical Mechanical SOS Actuator (`Home.tsx`)**:
+   - Removed diffuse glowing aurora blobs (`blur-xl opacity-20 animate-pulse`).
+   - Redesigned the primary SOS button as a physical mechanical actuator with beveled inset border (`border-4 border-slate-200/90`), deep tactile drop-shadow (`shadow-[0_6px_0_#8b1818,0_10px_20px_rgba(0,0,0,0.12)]`), and physical press displacement (`active:translate-y-1`).
+   - Replaced multi-gradient zero-net pill button with crisp tactile button (`bg-[#D32F2F] hover:bg-[#b71c1c] active:bg-[#9a1414] rounded-lg border border-red-700`).
+   - Standardized quick action tiles with calibrated `rounded-xl`, `border border-slate-200`, and clean typography.
+4. **Emoji Slop & Hype Typography Removal**:
+   - Purged double-emoji buttons (`🚨 Trigger SOS`, `📞 Call 112`, `⚡ Simulate...`, `🛡️ Safe Path`).
+   - Replaced with semantic Lucide vector icons (`AlertTriangle`, `Phone`, `Navigation`, `Radio`) and authoritative telemetry headers.
+   - Restructured `aiGuardianService.ts` prompts and fallback templates from emoji-laden copy to clean Markdown telemetry headers (`### EMERGENCY DIRECTIVE`).
+5. **Calibrated Radii & Button Tactility (`Button.tsx`)**:
+   - Replaced indiscriminate `rounded-full` pill styling with calibrated `rounded-lg` and `rounded-xl` geometry.
+   - Added physical active feedback (`active:scale-[0.98]`, sharp border hierarchy).
+6. **Tactile Map Controls & Pin Badges (`InteractiveMap.tsx`, `MapScreen.tsx`)**:
+   - Replaced floating glass bubbles with solid slate tiles (`w-10 h-10 rounded-lg bg-slate-900 border border-slate-700 text-slate-200`).
+   - Replaced gradient volunteer and SOS alert banners with solid high-contrast crimson and slate panels.
 

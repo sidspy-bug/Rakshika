@@ -120,19 +120,16 @@ export const SosReadinessCard: React.FC = () => {
   const allReady = contactsCount > 0 && gpsStatus === "ready";
 
   return (
-    <GlassCard className="bg-gradient-to-br from-[#1a0505] via-[#2a0808] to-[#120303] text-white border border-red-900/40 p-5 shadow-xl relative overflow-hidden">
-      {/* Background ambient glow */}
-      <div className="absolute top-0 right-0 w-36 h-36 bg-red-600/15 rounded-full blur-2xl pointer-events-none" />
-
+    <GlassCard className="bg-slate-900 text-white border border-slate-800 p-5 shadow-xs relative rounded-xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 relative z-10">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400">
+          <div className="w-8 h-8 rounded-lg bg-red-900/60 border border-red-800 flex items-center justify-center text-red-400">
             <ShieldAlert className="w-4 h-4" />
           </div>
           <div>
             <h3 className="font-bold text-sm text-white tracking-wide">Emergency SOS Readiness</h3>
-            <p className="text-[11px] text-gray-400">Live hardware & dispatch telemetry</p>
+            <p className="text-[11px] text-slate-400">Live hardware & dispatch telemetry</p>
           </div>
         </div>
 

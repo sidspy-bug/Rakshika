@@ -132,8 +132,8 @@ export function EmergencyAlertScreen() {
 
       {/* Header */}
       <header className="px-6 py-6 flex justify-between items-start relative z-10">
-        <div className="bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/30 flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+        <div className="bg-red-950 px-3 py-1.5 rounded-lg border border-red-800 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-red-400" />
           <span className="text-white text-xs font-bold tracking-wider uppercase">
             Live Alert
           </span>
@@ -142,7 +142,7 @@ export function EmergencyAlertScreen() {
         {!isMuted && (
           <button 
             onClick={handleMute}
-            className="w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/30 transition-colors"
+            className="w-10 h-10 bg-slate-900 border border-slate-700 rounded-lg flex items-center justify-center text-white hover:bg-slate-800 transition-colors"
           >
             <VolumeX className="w-5 h-5" />
           </button>
@@ -235,20 +235,20 @@ export function EmergencyAlertScreen() {
                 onClick={handleAccept}
                 disabled={isProcessing}
                 className={cn(
-                  "w-full bg-white text-[#D32F2F] font-black text-xl py-5 rounded-full shadow-2xl flex items-center justify-center gap-3 transition-transform active:scale-95",
+                  "w-full bg-white text-[#D32F2F] font-bold text-lg py-4 rounded-lg shadow-md flex items-center justify-center gap-2.5 transition-all active:scale-[0.98]",
                   isProcessing && "opacity-70"
                 )}
               >
-                <CheckCircle2 className="w-7 h-7" />
+                <CheckCircle2 className="w-6 h-6 text-[#D32F2F]" />
                 ACCEPT RESPONSE
               </button>
               
               <button
                 onClick={() => setShowDeclineReason(true)}
                 disabled={isProcessing}
-                className="w-full bg-black/20 backdrop-blur-md text-white font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-black/30 transition-colors"
+                className="w-full bg-slate-900 border border-slate-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors active:scale-[0.98]"
               >
-                <XCircle className="w-5 h-5" />
+                <XCircle className="w-4 h-4" />
                 Decline
               </button>
             </div>

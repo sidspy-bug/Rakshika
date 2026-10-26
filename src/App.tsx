@@ -264,9 +264,9 @@ export default function App() {
         <BrowserRouter>
           {/* Global High-Visibility BLE Mesh Intercept Alert Banner */}
           {interceptedAlert && (
-            <div className="fixed top-4 left-3 right-3 sm:left-6 sm:right-6 max-w-md mx-auto z-[99999] bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white p-3.5 rounded-2xl shadow-2xl border border-red-300/40 flex items-start gap-3 backdrop-blur-md animate-in slide-in-from-top-4 duration-300">
-              <div className="w-10 h-10 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0">
-                <Radio className="w-5 h-5 text-amber-300 animate-pulse" />
+            <div className="fixed top-4 left-3 right-3 sm:left-6 sm:right-6 max-w-md mx-auto z-[99999] bg-[#D32F2F] text-white p-3 rounded-lg shadow-md border border-red-800 flex items-start gap-3 animate-in slide-in-from-top-4 duration-200">
+              <div className="w-9 h-9 rounded-lg bg-red-900 border border-red-700 flex items-center justify-center shrink-0">
+                <Radio className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1 min-w-0 pr-1">
                 <div className="flex items-center gap-1.5 flex-wrap">

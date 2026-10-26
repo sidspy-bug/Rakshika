@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Shield, Map, Bot, Users, Settings, ShieldAlert, X, Sparkles } from "lucide-react";
+import { Shield, Map, LifeBuoy, Users, Settings, ShieldAlert, X } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { getActiveSos, stopSos, type SosIncident } from "../../services/sosService";
 import { dispatchEngine } from "../../services/dispatchEngine";
@@ -10,10 +10,10 @@ export function AppLayout() {
   const [activeSos, setActiveSos] = useState<SosIncident | null>(() => getActiveSos());
 
   const navItems = [
-    { to: "/", icon: Shield, label: "Safe" },
-    { to: "/map", icon: Map, label: "Map" },
-    { to: "/ai", icon: Bot, label: "AI Chat", isAi: true },
-    { to: "/community", icon: Users, label: "Community" },
+    { to: "/", icon: Shield, label: "Safety" },
+    { to: "/map", icon: Map, label: "Safe Map" },
+    { to: "/ai", icon: LifeBuoy, label: "Advisor" },
+    { to: "/community", icon: Users, label: "Volunteers" },
     { to: "/profile", icon: Settings, label: "Profile" },
   ];
 
@@ -37,21 +37,21 @@ export function AppLayout() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 text-gray-900 max-w-[600px] mx-auto border-x border-gray-200 overflow-hidden relative">
+    <div className="flex flex-col h-screen bg-slate-50 text-slate-900 max-w-[600px] mx-auto border-x border-slate-200 overflow-hidden relative">
       {/* Persistent Active SOS Banner */}
       {activeSos && (
         <div
           onClick={() => navigate("/sos")}
-          className="bg-gradient-to-r from-red-600 to-red-800 text-white px-4 py-2.5 flex items-center justify-between shadow-lg cursor-pointer z-50 animate-pulse"
+          className="bg-[#D32F2F] text-white px-4 py-2.5 flex items-center justify-between border-b border-red-800 shadow-md cursor-pointer z-50"
         >
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-white flex-shrink-0 animate-bounce" />
+          <div className="flex items-center gap-2.5">
+            <ShieldAlert className="w-5 h-5 text-white flex-shrink-0" />
             <div>
-              <span className="font-black text-xs tracking-wider uppercase block">
-                🚨 SOS Active & Recording
+              <span className="font-extrabold text-xs tracking-wider uppercase block">
+                EMERGENCY SOS ACTIVE
               </span>
-              <span className="text-[10px] text-white/80 font-mono">
-                ID: {activeSos.id.slice(-6)} • Tap to manage
+              <span className="text-[10px] text-red-100 font-mono">
+                ID: {activeSos.id.slice(-6)} • Tap to view telemetry
               </span>
             </div>
           </div>
@@ -59,13 +59,13 @@ export function AppLayout() {
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => navigate("/sos")}
-              className="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-[10px] font-bold"
+              className="px-2.5 py-1 bg-red-800 hover:bg-red-900 text-white rounded-md text-[10px] font-bold border border-red-700 active:scale-95 transition-all"
             >
               Open
             </button>
             <button
               onClick={handleStopActiveSos}
-              className="px-2.5 py-1 bg-white text-red-600 hover:bg-gray-100 rounded-lg text-[10px] font-black flex items-center gap-1 shadow"
+              className="px-2.5 py-1 bg-white text-red-700 hover:bg-slate-100 rounded-md text-[10px] font-bold flex items-center gap-1 shadow-xs border border-red-200 active:scale-95 transition-all"
             >
               <X className="w-3 h-3" /> Stop SOS
             </button>
@@ -74,30 +74,27 @@ export function AppLayout() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto pb-[80px]">
+      <main className="flex-1 overflow-y-auto pb-[76px]">
         <Outlet />
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="absolute bottom-0 left-0 right-0 h-[80px] bg-white/80 backdrop-blur-lg border-t border-gray-200 flex items-center justify-around px-4 z-40">
+      <nav className="absolute bottom-0 left-0 right-0 h-[72px] bg-white border-t border-slate-200 flex items-center justify-around px-2 z-40 select-none shadow-[0_-1px_3px_rgba(0,0,0,0.03)]">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
               cn(
-                "flex flex-col items-center justify-center w-16 gap-1 transition-colors relative",
-                isActive ? "text-[#D32F2F]" : "text-gray-400 hover:text-gray-600"
+                "flex flex-col items-center justify-center w-14 py-1.5 gap-1 transition-all rounded-lg active:scale-95",
+                isActive
+                  ? "text-[#D32F2F] font-bold"
+                  : "text-slate-500 hover:text-slate-800"
               )
             }
           >
-            <div className="relative">
-              <item.icon className="w-6 h-6" />
-              {item.isAi && (
-                <Sparkles className="w-2.5 h-2.5 text-amber-500 absolute -top-1 -right-1 animate-pulse" />
-              )}
-            </div>
-            <span className="text-[10px] font-semibold">{item.label}</span>
+            <item.icon className="w-5 h-5" />
+            <span className="text-[10px] tracking-tight">{item.label}</span>
           </NavLink>
         ))}
       </nav>

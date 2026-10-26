@@ -44,10 +44,10 @@ export function NavigationPanel({
   };
 
   return (
-    <GlassCard className="p-5 border border-gray-800 bg-black/90 text-white shadow-2xl overflow-hidden flex flex-col gap-4 max-w-md w-full mx-auto animate-in slide-in-from-bottom-4 duration-200">
+    <GlassCard className="p-4 border border-slate-800 bg-slate-900 text-white shadow-xl overflow-hidden flex flex-col gap-3.5 max-w-md w-full mx-auto animate-in slide-in-from-bottom-4 duration-150 rounded-xl">
       
       {/* Profile Toggle (Walking vs Driving) */}
-      <div className="flex gap-2 p-1 bg-gray-950 rounded-xl border border-gray-900">
+      <div className="flex gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-800">
         <button
           onClick={() => onProfileChange("foot-walking")}
           className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${

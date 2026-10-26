@@ -85,51 +85,51 @@ export function CommunityScreen() {
 
       {/* Real-time Emergency SOS Alert Banner */}
       {activeAlerts.length > 0 && (
-        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-red-800 text-white p-4 rounded-2xl shadow-xl border border-red-400 flex items-center justify-between animate-in zoom-in-95 duration-200">
+        <div className="bg-[#D32F2F] text-white p-3.5 rounded-lg shadow-sm border border-red-700 flex items-center justify-between animate-in zoom-in-95 duration-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30 animate-pulse">
-              <ShieldAlert className="w-6 h-6 text-white" />
+            <div className="w-9 h-9 rounded-lg bg-red-900 flex items-center justify-center shrink-0 border border-red-700">
+              <ShieldAlert className="w-5 h-5 text-white" />
             </div>
             <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-red-200 block">
-                🚨 CRITICAL SOS DISPATCHED
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-100 block">
+                CRITICAL SOS DISPATCHED
               </span>
-              <h3 className="text-sm font-black text-white">
+              <h3 className="text-sm font-bold text-white">
                 {activeAlerts[0].victimName}
               </h3>
-              <p className="text-[11px] text-white/80">
+              <p className="text-[11px] text-red-100">
                 {activeAlerts[0].distanceMeters ? `${activeAlerts[0].distanceMeters}m away from you` : "In your immediate vicinity"}
               </p>
             </div>
           </div>
           <button
             onClick={() => handleRespondToAlert(activeAlerts[0])}
-            className="px-3 py-2 bg-white text-red-600 hover:bg-gray-100 rounded-xl text-xs font-black shadow-lg flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform cursor-pointer"
+            className="px-3 py-2 bg-white text-red-700 hover:bg-slate-100 rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-transform cursor-pointer border border-red-200"
           >
-            <Car className="w-4 h-4 text-red-600" />
+            <Car className="w-4 h-4 text-red-700" />
             <span>Respond</span>
           </button>
         </div>
       )}
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input 
           type="text" 
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search peer volunteers by name or role..." 
-          className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#D32F2F]"
+          className="w-full bg-white border border-slate-300 rounded-lg py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#D32F2F] text-slate-900 placeholder-slate-400 shadow-xs"
         />
       </div>
 
       <section>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Nearby Responders</h2>
+          <h2 className="text-base font-bold text-slate-900">Nearby Responders</h2>
           <span onClick={() => navigate("/map")} className="text-xs font-bold text-[#D32F2F] cursor-pointer hover:underline">View Map</span>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {filteredVolunteers.map((vol, idx) => (
             <GlassCard
               key={vol.id || idx}
@@ -144,14 +144,14 @@ export function CommunityScreen() {
                   },
                 });
               }}
-              className="p-4 flex items-center gap-4 hover:border-gray-300 transition-colors cursor-pointer"
+              className="p-3.5 flex items-center gap-3.5 hover:border-slate-300 transition-colors cursor-pointer rounded-xl border border-slate-200 shadow-xs"
             >
               <div className="relative">
-                <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center text-xl font-bold text-sky-700">
+                <div className="w-10 h-10 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-sm font-bold text-slate-800">
                   {vol.name.charAt(0)}
                 </div>
                 {vol.isAvailable && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></div>
                 )}
               </div>
               

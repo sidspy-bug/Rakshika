@@ -452,12 +452,12 @@ export function InteractiveMap({
       const marker = L.marker([v.coords.lat, v.coords.lng], { icon: vIcon });
       marker.bindTooltip(
         `
-        <div class="p-1.5 text-xs font-bold text-slate-900 bg-white/95 rounded-xl shadow-xl border border-cyan-300 backdrop-blur-md">
-          <p class="font-extrabold text-cyan-700 flex items-center gap-1">🛡️ ${v.name}</p>
-          <p class="text-[10px] text-gray-600 mt-0.5">
+        <div class="p-2 text-xs font-bold text-slate-900 bg-white rounded-lg shadow-sm border border-slate-200">
+          <p class="font-bold text-slate-900 flex items-center gap-1">${v.name}</p>
+          <p class="text-[10px] text-slate-500 mt-0.5">
             ${v.distanceMeters ? `${v.distanceMeters}m away • ` : ""}${v.role}
           </p>
-          <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-bold mt-1">Live Online</span>
+          <span class="inline-block px-1.5 py-0.2 rounded text-[9px] bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 mt-1">Live Online</span>
         </div>
         `,
         { permanent: false, direction: "top", offset: [0, -14] }
@@ -546,18 +546,18 @@ export function InteractiveMap({
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
       {/* Floating Action Controls - Perfectly Positioned on Right Side (Unobstructed) */}
-      <div className="absolute right-4 top-36 z-30 flex flex-col gap-2.5">
+      <div className="absolute right-4 top-36 z-30 flex flex-col gap-2 select-none">
         {/* Map View / Satellite Mode Toggle Button */}
         <button
           onClick={() => {
             setMapMode((prev) => (prev === "satellite" ? "streets" : prev === "streets" ? "dark" : "satellite"));
           }}
-          className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center shadow-2xl border backdrop-blur-xl transition-all active:scale-95 ${
+          className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center shadow-xs border transition-all active:scale-95 ${
             mapMode === "satellite"
-              ? "bg-emerald-600 text-white border-emerald-400 shadow-emerald-500/40"
+              ? "bg-emerald-700 text-white border-emerald-600"
               : mapMode === "streets"
-              ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/40"
-              : "bg-black/85 text-gray-300 border-gray-800 hover:text-white"
+              ? "bg-blue-700 text-white border-blue-600"
+              : "bg-slate-900 text-slate-200 border-slate-700 hover:text-white"
           }`}
           title={`Switch Map View (Current: ${mapMode})`}
         >
@@ -570,28 +570,28 @@ export function InteractiveMap({
         {/* Recenter Location Button */}
         <button
           onClick={handleRecenter}
-          className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-2xl border backdrop-blur-xl transition-all active:scale-95 ${
+          className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-xs border transition-all active:scale-95 ${
             followUser
-              ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/40"
-              : "bg-black/80 text-gray-300 border-gray-800 hover:bg-black/95 hover:text-white"
+              ? "bg-blue-700 text-white border-blue-600"
+              : "bg-slate-900 text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white"
           }`}
           title="Recenter GPS Position"
         >
-          <Navigation className={`w-5 h-5 fill-current ${followUser ? "animate-pulse" : ""}`} />
+          <Navigation className="w-4 h-4 fill-current" />
         </button>
 
         {/* Zoom Controls */}
-        <div className="flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-gray-800 bg-black/80 text-gray-300 divide-y divide-gray-800/80 backdrop-blur-xl">
+        <div className="flex flex-col rounded-lg overflow-hidden shadow-xs border border-slate-700 bg-slate-900 text-slate-200 divide-y divide-slate-800">
           <button
             onClick={() => mapRef.current?.zoomIn()}
-            className="w-11 h-10 flex items-center justify-center hover:bg-white/10 text-white font-bold transition-colors active:bg-white/20"
+            className="w-10 h-9 flex items-center justify-center hover:bg-slate-800 text-white font-bold transition-colors active:bg-slate-700"
             title="Zoom In"
           >
             <Plus className="w-4 h-4" />
           </button>
           <button
             onClick={() => mapRef.current?.zoomOut()}
-            className="w-11 h-10 flex items-center justify-center hover:bg-white/10 text-white font-bold transition-colors active:bg-white/20"
+            className="w-10 h-9 flex items-center justify-center hover:bg-slate-800 text-white font-bold transition-colors active:bg-slate-700"
             title="Zoom Out"
           >
             <Minus className="w-4 h-4" />
@@ -601,7 +601,7 @@ export function InteractiveMap({
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="absolute top-28 left-1/2 -translate-x-1/2 z-30 bg-black/90 text-white px-4 py-2 rounded-full border border-emerald-500/30 text-xs font-semibold flex items-center gap-2.5 shadow-2xl backdrop-blur-md animate-in fade-in duration-200">
+        <div className="absolute top-28 left-1/2 -translate-x-1/2 z-30 bg-slate-900 text-slate-200 px-3.5 py-1.5 rounded-lg border border-slate-700 text-xs font-semibold flex items-center gap-2 shadow-xs animate-in fade-in duration-150">
           <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
           <span>Syncing safe paths & helpers...</span>
         </div>

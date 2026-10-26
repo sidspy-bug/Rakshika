@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ShieldAlert, MapPin, PhoneCall, Mic, Siren, Square, CheckCircle2, Radio } from "lucide-react";
+import { ShieldAlert, MapPin, PhoneCall, Mic, Siren, Square, CheckCircle2, Radio, LifeBuoy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -272,111 +272,118 @@ export function Home() {
         {/* Offline Emergency Comms & Distress Chat Trigger */}
         <button
           onClick={() => setIsOfflineModalOpen(true)}
-          className="shrink-0 flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white rounded-2xl shadow-md shadow-red-600/30 active:scale-95 transition-all text-xs font-bold border border-red-400/30 group"
+          className="shrink-0 flex items-center gap-2 px-3 py-2 bg-[#D32F2F] hover:bg-[#b71c1c] active:bg-[#9a1414] text-white rounded-lg shadow-xs border border-red-700 active:scale-[0.98] transition-all text-xs font-semibold select-none"
           title="Offline Emergency Chat & Coordinates (Zero Internet Mode)"
         >
           <div className="relative flex items-center justify-center">
-            <Radio className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+            <Radio className="w-4 h-4 text-white" />
             <span className="absolute -top-1 -right-1 flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
             </span>
           </div>
           <div className="text-left leading-tight hidden xs:block sm:block">
-            <div className="text-[9px] uppercase tracking-wider text-red-200 font-extrabold flex items-center gap-1">
+            <div className="text-[9px] uppercase tracking-wider text-red-200 font-bold">
               Zero-Net
             </div>
-            <div className="text-xs font-black">Offline Chat</div>
+            <div className="text-xs font-extrabold">Offline Chat</div>
           </div>
           <span className="xs:hidden sm:hidden text-xs font-bold">Offline</span>
         </button>
       </header>
 
-      {/* Main SOS Action */}
-      <section className="flex flex-col items-center justify-center py-8">
-        <div className="relative group cursor-pointer" onClick={() => navigate('/sos')}>
-          <div className="absolute inset-0 bg-red-500 rounded-full blur-xl opacity-20 group-hover:opacity-40 transition-opacity duration-500 animate-pulse"></div>
-          <button className="relative w-48 h-48 bg-gradient-to-b from-[#ff4b4b] to-[#b71c1c] rounded-full shadow-[0_10px_40px_rgba(211,47,47,0.4)] flex flex-col items-center justify-center border-4 border-white/20 transition-transform active:scale-95 duration-200">
-            <ShieldAlert className="w-16 h-16 text-white mb-2" strokeWidth={1.5} />
-            <span className="text-white text-3xl font-bold tracking-widest">SOS</span>
-          </button>
+      {/* Main SOS Action - Physical Tactile Actuator */}
+      <section className="flex flex-col items-center justify-center py-6">
+        <div className="cursor-pointer select-none" onClick={() => navigate('/sos')}>
+          <div className="w-48 h-48 rounded-full bg-slate-100 border-4 border-slate-200/90 p-2.5 flex items-center justify-center shadow-inner">
+            <button className="w-full h-full bg-[#D32F2F] hover:bg-[#c22828] active:bg-[#a81e1e] rounded-full shadow-[0_6px_0_#8b1818,0_10px_20px_rgba(0,0,0,0.12)] active:shadow-[0_2px_0_#8b1818,0_4px_10px_rgba(0,0,0,0.08)] active:translate-y-1 flex flex-col items-center justify-center border border-red-400/30 transition-all">
+              <ShieldAlert className="w-15 h-15 text-white mb-1" strokeWidth={1.8} />
+              <span className="text-white text-3xl font-black tracking-widest">SOS</span>
+            </button>
+          </div>
         </div>
-        <p className="mt-6 text-sm text-gray-500 font-medium tracking-wide uppercase">Press for Emergency Help</p>
+        <p className="mt-5 text-xs text-slate-500 font-semibold tracking-wider uppercase">Press for Emergency Dispatch</p>
       </section>
 
-      {/* Quick Actions Grid */}
-      <section className="grid grid-cols-2 gap-4">
-        <GlassCard className="flex flex-col items-center justify-center p-4 gap-3 cursor-pointer hover:bg-gray-50 transition-colors border-2 border-transparent hover:border-gray-200" onClick={() => navigate('/fake-call')}>
-          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-            <PhoneCall className="w-6 h-6" />
+      {/* Quick Actions Grid - Tactile Utility Tiles */}
+      <section className="grid grid-cols-2 gap-3">
+        <GlassCard 
+          className="flex flex-col items-center justify-center p-3.5 gap-2.5 cursor-pointer hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all border border-slate-200 select-none shadow-xs rounded-xl" 
+          onClick={() => navigate('/fake-call')}
+        >
+          <div className="w-11 h-11 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
+            <PhoneCall className="w-5 h-5" />
           </div>
-          <span className="font-semibold text-sm text-gray-800">Fake Call</span>
+          <span className="font-bold text-xs text-slate-800">Fake Call</span>
         </GlassCard>
 
         <GlassCard 
-          className={`flex flex-col items-center justify-center p-4 gap-3 cursor-pointer transition-colors border-2 ${isSirenPlaying ? 'border-orange-500 bg-orange-50' : 'border-transparent hover:border-gray-200 hover:bg-gray-50'}`}
+          className={`flex flex-col items-center justify-center p-3.5 gap-2.5 cursor-pointer active:scale-[0.98] transition-all border select-none shadow-xs rounded-xl ${isSirenPlaying ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}
           onClick={toggleSiren}
         >
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isSirenPlaying ? 'bg-orange-500 text-white animate-pulse' : 'bg-orange-100 text-orange-600'}`}>
-            <Siren className="w-6 h-6" />
+          <div className={`w-11 h-11 rounded-lg border flex items-center justify-center ${isSirenPlaying ? 'bg-amber-600 border-amber-700 text-white animate-pulse' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+            <Siren className="w-5 h-5" />
           </div>
-          <span className="font-semibold text-sm text-gray-800">{isSirenPlaying ? "Stop Siren" : "Siren"}</span>
+          <span className="font-bold text-xs text-slate-800">{isSirenPlaying ? "Stop Siren" : "Siren"}</span>
         </GlassCard>
         
         <GlassCard 
-          className={`flex flex-col items-center justify-center p-4 gap-3 cursor-pointer transition-colors border-2 ${isRecording ? 'border-purple-500 bg-purple-50' : 'border-transparent hover:border-gray-200 hover:bg-gray-50'}`}
+          className={`flex flex-col items-center justify-center p-3.5 gap-2.5 cursor-pointer active:scale-[0.98] transition-all border select-none shadow-xs rounded-xl ${isRecording ? 'border-rose-500 bg-rose-50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}
           onClick={toggleRecord}
         >
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isRecording ? 'bg-purple-500 text-white animate-pulse' : 'bg-purple-100 text-purple-600'}`}>
-            {isRecording ? <Square className="w-6 h-6 fill-current" /> : <Mic className="w-6 h-6" />}
+          <div className={`w-11 h-11 rounded-lg border flex items-center justify-center ${isRecording ? 'bg-rose-600 border-rose-700 text-white animate-pulse' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+            {isRecording ? <Square className="w-5 h-5 fill-current" /> : <Mic className="w-5 h-5" />}
           </div>
-          <span className="font-semibold text-sm text-gray-800">{isRecording ? "Stop Recording" : "Record"}</span>
+          <span className="font-bold text-xs text-slate-800">{isRecording ? "Stop Recording" : "Record Audio"}</span>
         </GlassCard>
 
-        <GlassCard className="flex flex-col items-center justify-center p-4 gap-3 cursor-pointer hover:bg-gray-50 transition-colors border-2 border-transparent hover:border-gray-200" onClick={() => navigate('/ai')}>
-          <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-            <ShieldAlert className="w-6 h-6" />
+        <GlassCard 
+          className="flex flex-col items-center justify-center p-3.5 gap-2.5 cursor-pointer hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all border border-slate-200 select-none shadow-xs rounded-xl" 
+          onClick={() => navigate('/ai')}
+        >
+          <div className="w-11 h-11 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+            <LifeBuoy className="w-5 h-5" />
           </div>
-          <span className="font-semibold text-sm text-gray-800">AI Advice</span>
+          <span className="font-bold text-xs text-slate-800">Safety Guide</span>
         </GlassCard>
       </section>
       
       {/* Forensic Evidence Vault Card */}
       <section className="mt-1">
         <GlassCard
-          className="p-4 bg-white/95 border-2 border-red-200/90 hover:border-red-400 shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-between gap-3 group"
+          className="p-4 bg-white border border-slate-200 hover:border-slate-300 shadow-xs transition-all cursor-pointer flex items-center justify-between gap-3 rounded-xl select-none active:scale-[0.99]"
           onClick={() => navigate("/history")}
         >
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 shadow-md shadow-red-500/30 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
-              <ShieldAlert className="w-6 h-6" />
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-lg bg-red-700 text-white flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h4 className="font-bold text-sm text-gray-950 flex items-center gap-2">
+              <h4 className="font-bold text-sm text-slate-900 truncate">
                 Evidence Vault & Incident Dossier
               </h4>
-              <p className="text-xs text-gray-700 font-medium mt-0.5 leading-relaxed">
-                View recorded videos, SHA-256 manifests & export police certificates
+              <p className="text-xs text-slate-600 font-medium mt-0.5 leading-snug line-clamp-1">
+                Recorded streams, SHA-256 manifests & police certificates
               </p>
             </div>
           </div>
-          <span className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3.5 py-2 rounded-xl shadow-sm shadow-red-600/30 shrink-0 transition-colors flex items-center gap-1">
-            Open Vault →
+          <span className="text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-800 shrink-0 transition-colors">
+            Open →
           </span>
         </GlassCard>
       </section>
 
       {/* Current Status */}
-      <section className="mt-1">
-        <div className={`rounded-2xl p-5 text-white flex items-center justify-between shadow-lg transition-colors ${guardianMode ? 'bg-gradient-to-r from-emerald-600 to-emerald-800' : 'bg-gradient-to-r from-gray-900 to-gray-800'}`}>
+      <section className="mt-0.5">
+        <div className={`rounded-xl p-4 text-white flex items-center justify-between border shadow-xs transition-all select-none ${guardianMode ? 'bg-emerald-900 border-emerald-800' : 'bg-slate-900 border-slate-800'}`}>
           <div>
-            <h3 className="font-bold text-lg">Guardian Mode</h3>
-            <p className="text-gray-300 text-sm mt-1">{guardianMode ? "Live location actively hidden." : "Live location hidden."}</p>
+            <h3 className="font-bold text-sm">Guardian Mode</h3>
+            <p className="text-slate-300 text-xs mt-0.5">{guardianMode ? "Live location is masked." : "Standard live location broadcast."}</p>
           </div>
           <Button 
             variant="secondary" 
             size="sm" 
-            className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+            className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700 text-xs"
             onClick={() => setGuardianMode(!guardianMode)}
           >
             {guardianMode ? "Disable" : "Enable"}

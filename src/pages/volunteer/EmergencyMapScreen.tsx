@@ -61,13 +61,13 @@ export function EmergencyMapScreen() {
       <header className="absolute top-0 left-0 right-0 z-[1000] p-4 pointer-events-none flex justify-between items-start pt-safe-top">
         <button
           onClick={() => navigate(-1)}
-          className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg border border-gray-100 pointer-events-auto hover:bg-white transition-colors"
+          className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-xs border border-slate-200 pointer-events-auto hover:bg-slate-50 transition-colors"
         >
-          <ChevronLeft className="w-5 h-5 text-gray-700" />
+          <ChevronLeft className="w-5 h-5 text-slate-700" />
         </button>
         
-        <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-gray-100 pointer-events-auto">
-          <span className="text-xs font-bold text-gray-700 tracking-wider uppercase">
+        <div className="bg-white px-3 py-1.5 rounded-lg shadow-xs border border-slate-200 pointer-events-auto">
+          <span className="text-xs font-bold text-slate-700 tracking-wider uppercase">
             Map View
           </span>
         </div>

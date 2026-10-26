@@ -56,8 +56,8 @@ export function ResolutionDialog({ onResolve, onCancel, isSubmitting = false }: 
   };
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/80 animate-in fade-in duration-150">
+      <div className="bg-white rounded-xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[90vh] border border-slate-200">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <h2 className="font-bold text-gray-900">Resolve Emergency</h2>

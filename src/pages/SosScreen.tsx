@@ -825,23 +825,23 @@ export function SosScreen() {
                       </button>
                     </div>
                   ) : (
-                    <div className="w-full bg-black/50 border border-white/10 rounded-2xl p-3.5 flex items-center justify-between backdrop-blur-md">
+                    <div className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between shadow-xs">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40">
-                          <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
+                        <div className="w-8 h-8 rounded-lg bg-emerald-950 flex items-center justify-center border border-emerald-800">
+                          <Radio className="w-4 h-4 text-emerald-400" />
                         </div>
                         <div>
                           <p className="text-xs font-bold text-white flex items-center gap-1.5">
                             Discreet Low-Power Radio SOS
                           </p>
-                          <p className="text-[10px] text-gray-400">
+                          <p className="text-[10px] text-slate-400">
                             Camera & Microphone Disengaged • Battery-saver active
                           </p>
                         </div>
                       </div>
                       <button
                         onClick={() => toggleVideoEvidence(true)}
-                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
                       >
                         <Camera className="w-3.5 h-3.5 text-amber-400" />
                         <span>Record Cam</span>
@@ -851,7 +851,7 @@ export function SosScreen() {
                 </div>
 
                 {/* ─── MULTI-CHANNEL DISPATCH STATUS GRID ─── */}
-                <div className="w-full bg-black/40 rounded-2xl p-4 flex flex-col gap-3 backdrop-blur-md border border-white/10 shadow-2xl">
+                <div className="w-full bg-slate-900 rounded-xl p-4 flex flex-col gap-3 border border-slate-800 shadow-xs">
                   {/* Channel 1: 112 ERSS & Police */}
                   <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/5">
                     <div className="w-9 h-9 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/50">
@@ -994,8 +994,9 @@ export function SosScreen() {
                 </AnimatePresence>
 
                 {unansweredCount > 0 && (
-                  <p className="mt-3 text-[11px] text-amber-300 font-bold text-center">
-                    ⚠️ {unansweredCount} check-in(s) unanswered — incident urgency elevated
+                  <p className="mt-3 text-[11px] text-amber-300 font-bold text-center flex items-center justify-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>{unansweredCount} check-in(s) unanswered — incident urgency elevated</span>
                   </p>
                 )}
 
@@ -1004,7 +1005,7 @@ export function SosScreen() {
                   <Button
                     size="lg"
                     variant="secondary"
-                    className="w-full max-w-xs text-red-600 font-bold"
+                    className="w-full max-w-xs text-red-600 font-bold rounded-lg"
                     onClick={cancelSos}
                   >
                     <X className="w-5 h-5 mr-2" /> Stop SOS
@@ -1023,11 +1024,11 @@ export function SosScreen() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-[300] bg-black/80 flex items-center justify-center p-4"
           >
-            <div className="bg-gray-950 border border-white/10 rounded-3xl p-5 w-full max-w-lg text-white shadow-2xl flex flex-col max-h-[88vh]">
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 w-full max-w-lg text-white shadow-2xl flex flex-col max-h-[88vh]">
               {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <Terminal className="w-5 h-5 text-cyan-400" />
                   <div>
@@ -1150,9 +1151,9 @@ export function SosScreen() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[250] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[250] bg-black/80 flex items-center justify-center p-4"
           >
-            <div className="bg-gray-900 border border-white/10 rounded-3xl p-6 w-full max-w-md text-white shadow-2xl">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-md text-white shadow-2xl">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Settings className="w-5 h-5 text-red-400" />
@@ -1238,9 +1239,9 @@ export function SosScreen() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[250] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[250] bg-black/80 flex items-center justify-center p-4"
           >
-            <div className="bg-gray-900 border border-white/10 rounded-3xl p-6 w-full max-w-md text-white shadow-2xl">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-md text-white shadow-2xl">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-amber-400" />
@@ -1325,22 +1326,22 @@ export function SosScreen() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[250] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[250] bg-black/85 flex items-center justify-center p-4"
           >
-            <div className="bg-gray-900 border border-purple-500/30 rounded-3xl p-6 w-full max-w-md text-white shadow-2xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-md text-white shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
-                  <Radio className="w-5 h-5 text-purple-400 animate-pulse" />
+                  <Radio className="w-5 h-5 text-red-400" />
                   <div>
                     <h3 className="font-bold text-base">AirTag BLE Mesh Relay Hub</h3>
-                    <p className="text-[10px] text-gray-400">
+                    <p className="text-[10px] text-slate-400">
                       Decentralized Store-and-Forward Emergency Bridge
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowMeshModal(false)}
-                  className="text-gray-400 hover:text-white p-1"
+                  className="text-slate-400 hover:text-white p-1"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1348,39 +1349,39 @@ export function SosScreen() {
 
               {/* Node Telemetry Grid */}
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                  <span className="text-[10px] text-gray-400 uppercase font-bold block">BLE Advertising</span>
-                  <span className="font-black text-purple-300">
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">BLE Advertising</span>
+                  <span className="font-bold text-slate-200">
                     {meshStats.isAdvertising ? "BROADCASTING" : "STANDBY"}
                   </span>
                 </div>
-                <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                  <span className="text-[10px] text-gray-400 uppercase font-bold block">Mesh Scanner</span>
-                  <span className="font-black text-green-400">
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Mesh Scanner</span>
+                  <span className="font-bold text-emerald-400">
                     {meshStats.isScanning ? "PASSIVE SCAN (ACTIVE)" : "IDLE"}
                   </span>
                 </div>
-                <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                  <span className="text-[10px] text-gray-400 uppercase font-bold block">Relay Buffer</span>
-                  <span className="font-black text-cyan-300">
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Relay Buffer</span>
+                  <span className="font-bold text-cyan-300">
                     {meshStats.bufferedPacketsCount} Packets
                   </span>
                 </div>
-                <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                  <span className="text-[10px] text-gray-400 uppercase font-bold block">Total Relayed</span>
-                  <span className="font-black text-amber-300">
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Relayed</span>
+                  <span className="font-bold text-amber-300">
                     {meshStats.totalPacketsRelayed} Beacons
                   </span>
                 </div>
               </div>
 
               {/* Explanation Box */}
-              <div className="p-3.5 bg-purple-950/40 border border-purple-500/30 rounded-2xl text-xs space-y-1.5 text-purple-200">
+              <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-lg text-xs space-y-1.5 text-slate-300">
                 <p className="font-bold text-white flex items-center gap-1.5">
-                  <ShieldAlert className="w-4 h-4 text-purple-400" /> How it protects you without network:
+                  <ShieldAlert className="w-4 h-4 text-red-400" /> How it protects you without network:
                 </p>
-                <p className="text-[11px] text-gray-300 leading-relaxed">
-                  When you have ZERO signal, your phone broadcasts an encrypted BLE beacon. Passing bystander phones silently catch it, carry it outside the dead-zone, and forward your SOS to your emergency contacts!
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  When you have ZERO signal, your phone broadcasts an encrypted BLE beacon. Passing bystander phones silently catch it, carry it outside the dead-zone, and forward your SOS to your emergency contacts.
                 </p>
               </div>
 
@@ -1388,13 +1389,13 @@ export function SosScreen() {
               <Button
                 onClick={handleSimulateMeshRelay}
                 disabled={isSimulatingMesh}
-                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm py-3.5 rounded-2xl shadow-lg shadow-purple-900/50 flex items-center justify-center gap-2"
+                className="w-full bg-[#D32F2F] hover:bg-red-700 active:bg-red-800 text-white font-bold text-sm py-3 rounded-lg border border-red-600 flex items-center justify-center gap-2 shadow-xs active:scale-95 transition-all"
               >
                 <Radio className="w-4 h-4 animate-spin" />
                 <span>
                   {isSimulatingMesh
                     ? "Simulating Bystander Interception..."
-                    : "⚡ Simulate Bystander Peer Interception & Relay"}
+                    : "Simulate Bystander Peer Interception & Relay"}
                 </span>
               </Button>
             </div>
